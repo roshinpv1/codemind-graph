@@ -5,6 +5,7 @@ import json
 import os
 import re
 from enum import Enum
+from functools import lru_cache
 from pathlib import Path
 
 from graphify.google_workspace import (
@@ -25,7 +26,39 @@ class FileType(str, Enum):
 _MANIFEST_PATH = "graphify-out/manifest.json"
 
 CODE_EXTENSIONS = {'.py', '.ts', '.js', '.jsx', '.tsx', '.mjs', '.ejs', '.go', '.rs', '.java', '.groovy', '.gradle', '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp', '.rb', '.swift', '.kt', '.kts', '.cs', '.scala', '.php', '.lua', '.luau', '.toc', '.zig', '.ps1', '.ex', '.exs', '.m', '.mm', '.jl', '.vue', '.svelte', '.astro', '.dart', '.v', '.sv', '.sql', '.r', '.f', '.F', '.f90', '.F90', '.f95', '.F95', '.f03', '.F03', '.f08', '.F08', '.pas', '.pp', '.dpr', '.dpk', '.lpr', '.inc', '.dfm', '.lfm', '.lpk', '.sh', '.bash', '.json'}
-DOC_EXTENSIONS = {'.md', '.mdx', '.qmd', '.txt', '.rst', '.html', '.yaml', '.yml'}
+DOC_EXTENSIONS = {
+    '.md', '.mdx', '.qmd', '.txt', '.rst', '.html', '.yaml', '.yml',
+    # Build & dependency manifests (LLM understands deps/config better than AST)
+    '.toml',        # pyproject.toml, Cargo.toml, rust configs
+    '.mod',         # go.mod — Go module definitions
+    # Infrastructure as code
+    '.tf',          # Terraform resource definitions
+    '.hcl',         # HashiCorp Configuration Language (Vault, Consul, Packer)
+    # Config files
+    '.conf', '.cfg', '.ini', '.properties',
+    # Service / API definitions
+    '.proto',       # Protocol Buffers — service/message definitions
+    '.graphql', '.gql',  # GraphQL schemas
+    '.prisma',      # Prisma schema
+    '.avsc',        # Avro schema
+    '.thrift',      # Apache Thrift IDL
+}
+
+# Extensionless files that are well-known build/ops artifacts.
+# Classified as DOCUMENT so the LLM can extract their semantics.
+_NAMED_BUILD_FILES: frozenset[str] = frozenset({
+    'Dockerfile', 'Containerfile',      # Container images
+    'Makefile', 'GNUmakefile',          # Build orchestration
+    'Procfile',                         # Heroku / process definitions
+    'Jenkinsfile',                      # CI/CD pipeline (Groovy DSL)
+    'Vagrantfile',                      # VM provisioning (Ruby DSL)
+    'Brewfile',                         # Homebrew bundle
+    'Guardfile',                        # Guard automation (Ruby)
+    'Rakefile',                         # Rake build (Ruby)
+    'Taskfile',                         # Taskfile.yml alternative (extensionless variant)
+    'Caddyfile',                        # Caddy web server config
+    'Earthfile',                        # Earthly build
+})
 PAPER_EXTENSIONS = {'.pdf'}
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'}
 OFFICE_EXTENSIONS = {'.docx', '.xlsx'}
@@ -117,6 +150,12 @@ def classify_file(path: Path) -> FileType | None:
     # Compound extensions must be checked before simple suffix lookup
     if path.name.lower().endswith(".blade.php"):
         return FileType.CODE
+    # Well-known extensionless build/ops files — sent to LLM as documents
+    if path.name in _NAMED_BUILD_FILES:
+        return FileType.DOCUMENT
+    # Dockerfile variants: Dockerfile.prod, Dockerfile.dev, etc.
+    if path.name.startswith("Dockerfile.") or path.name.startswith("Containerfile."):
+        return FileType.DOCUMENT
     ext = path.suffix.lower()
     if not ext:
         return _shebang_file_type(path)
@@ -369,7 +408,7 @@ _SKIP_DIRS = {
     "site-packages", "lib64",
     ".pytest_cache", ".mypy_cache", ".ruff_cache",
     ".tox", ".eggs", "*.egg-info",
-    "graphify-out",  # never treat own output as source input (#524)
+    "graphify-out",  # never treat own output as source input (#524); see graphify_output_dir_names()
     # Coverage/test-artefact dirs — generated, never architecturally meaningful
     "coverage", "lcov-report",              # Vitest/Istanbul/nyc HTML reports (#870)
     "visual-tests", "visual-test",          # Playwright/visual-regression bundles (#869)
@@ -389,9 +428,25 @@ _SKIP_FILES = {
     "composer.lock", "go.sum", "go.work.sum",
 }
 
+@lru_cache(maxsize=1)
+def graphify_output_dir_names() -> frozenset[str]:
+    """Basename(s) of graphify output dirs — honors GRAPHIFY_OUT env (case-insensitive match)."""
+    raw = os.environ.get("GRAPHIFY_OUT", "graphify-out")
+    names = {"graphify-out", Path(raw).name}
+    return frozenset(n.lower() for n in names if n)
+
+
+def is_graphify_output_path(path: Path, root: Path | None = None) -> bool:
+    """True when any path segment is a graphify output directory (e.g. graphify-out/)."""
+    names = graphify_output_dir_names()
+    return any(part.lower() in names for part in path.parts)
+
+
 def _is_noise_dir(part: str) -> bool:
     """Return True if this directory name looks like a venv, cache, or dep dir."""
     if part in _SKIP_DIRS:
+        return True
+    if part.lower() in graphify_output_dir_names():
         return True
     # Catch *_venv, *_repo/site-packages patterns
     if part.endswith("_venv") or part.endswith("_env"):
@@ -662,7 +717,13 @@ def _could_contain_included_path(path: Path, root: Path, patterns: list[tuple[Pa
     return False
 
 
-def detect(root: Path, *, follow_symlinks: bool = False, google_workspace: bool | None = None) -> dict:
+def detect(
+    root: Path,
+    *,
+    follow_symlinks: bool = False,
+    google_workspace: bool | None = None,
+    include_graphify_memory: bool = True,
+) -> dict:
     root = root.resolve()
     google_workspace = google_workspace_enabled() if google_workspace is None else google_workspace
     files: dict[FileType, list[str]] = {
@@ -678,17 +739,25 @@ def detect(root: Path, *, follow_symlinks: bool = False, google_workspace: bool 
     ignore_patterns = _load_graphifyignore(root)
     include_patterns = _load_graphifyinclude(root)
 
-    # Always include graphify-out/memory/ - query results filed back into the graph
-    memory_dir = root / "graphify-out" / "memory"
+    # graphify-out/memory/ is for CLI query filing — skip during normal/API indexing
+    memory_dir: Path | None = None
+    if include_graphify_memory:
+        out_names = graphify_output_dir_names()
+        for child in root.iterdir():
+            if child.is_dir() and child.name.lower() in out_names:
+                cand = child / "memory"
+                if cand.is_dir():
+                    memory_dir = cand
+                    break
     scan_paths = [root]
-    if memory_dir.exists():
+    if memory_dir is not None:
         scan_paths.append(memory_dir)
 
     seen: set[Path] = set()
     all_files: list[Path] = []
 
     for scan_root in scan_paths:
-        in_memory_tree = memory_dir.exists() and str(scan_root).startswith(str(memory_dir))
+        in_memory_tree = memory_dir is not None and str(scan_root).startswith(str(memory_dir))
         for dirpath, dirnames, filenames in os.walk(scan_root, followlinks=follow_symlinks):
             dp = Path(dirpath)
             if follow_symlinks and os.path.islink(dirpath):
@@ -721,7 +790,9 @@ def detect(root: Path, *, follow_symlinks: bool = False, google_workspace: bool 
 
     for p in all_files:
         # For memory dir files, skip hidden/noise filtering
-        in_memory = memory_dir.exists() and str(p).startswith(str(memory_dir))
+        in_memory = memory_dir is not None and str(p).startswith(str(memory_dir))
+        if not in_memory and is_graphify_output_path(p, root):
+            continue
         if not in_memory:
             # Skip files inside our own converted/ dir (avoid re-processing sidecars)
             if str(p).startswith(str(converted_dir)):

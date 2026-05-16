@@ -6488,7 +6488,12 @@ def collect_files(target: Path, *, follow_symlinks: bool = False, root: Path | N
     if target.is_file():
         return [target]
     _EXTENSIONS = set(_DISPATCH.keys())
-    from graphify.detect import _load_graphifyignore, _is_ignored, _is_noise_dir
+    from graphify.detect import (
+        _load_graphifyignore,
+        _is_ignored,
+        _is_noise_dir,
+        is_graphify_output_path,
+    )
     ignore_root = root if root is not None else target
     patterns = _load_graphifyignore(ignore_root)
 
@@ -6501,6 +6506,7 @@ def collect_files(target: Path, *, follow_symlinks: bool = False, root: Path | N
             results.extend(
                 p for p in target.rglob(f"*{ext}")
                 if not any(_is_noise_dir(part) for part in p.parts)
+                and not is_graphify_output_path(p, ignore_root)
                 and not _ignored(p)
             )
         return sorted(results)
@@ -6517,7 +6523,11 @@ def collect_files(target: Path, *, follow_symlinks: bool = False, root: Path | N
         dirnames[:] = [d for d in dirnames if not _is_noise_dir(d)]
         for fname in filenames:
             p = dp / fname
-            if p.suffix in _EXTENSIONS and not _ignored(p):
+            if (
+                p.suffix in _EXTENSIONS
+                and not is_graphify_output_path(p, ignore_root)
+                and not _ignored(p)
+            ):
                 results.append(p)
     return sorted(results)
 

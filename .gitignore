@@ -1,0 +1,70 @@
+# ── Secrets & local env ───────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets/
+
+# ── OS & editors ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+.venv*/
+venv/
+env/
+ENV/
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# ── Node / Next.js (frontend) ─────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+frontend/.vercel/
+*.tsbuildinfo
+
+# ── CodeMind runtime data (graphs, SQLite, ingest artifacts) ──────────────────
+data/*
+!data/.gitkeep
+*.db
+*.db-shm
+*.db-wal
+
+# ── graphify CLI output & extraction cache (anywhere in the tree) ─────────────
+graphify-out/
+**/graphify-out/
+.graphify/
+.graphify_detect.json
+
+# ── Logs & temp ───────────────────────────────────────────────────────────────
+*.log
+logs/
+tmp/
+temp/
+.cache/
