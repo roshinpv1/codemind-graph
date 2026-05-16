@@ -10,6 +10,7 @@ import {
   useDeleteProjectGraph,
 } from "@/lib/hooks/use-projects";
 import { PageHeader } from "@/components/layout/page-header";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { IngestDialog } from "@/components/graphs/ingest-dialog";
 import { CoverageRing } from "@/components/coverage/coverage-ring";
 import { EntryPointTable } from "@/components/coverage/entry-point-table";
@@ -23,9 +24,17 @@ import { repositoryPath } from "@/lib/routes";
 import { ProjectDna } from "@/components/projects/project-dna";
 import { ProductMap } from "@/components/projects/product-map";
 import { ProjectBriefing } from "@/components/projects/project-briefing";
-import { ProjectAskPanel } from "@/components/projects/project-ask-panel";
+import { ProjectOnboarding } from "@/components/projects/project-onboarding";
+import { ProjectSubnav } from "@/components/projects/project-subnav";
+import { ProjectSection } from "@/components/projects/project-section";
+import { ProjectAskTeaser } from "@/components/projects/project-ask-teaser";
 
-const ROLES: GraphRole[] = ["source", "test", "ci", "cd"];
+/** Application + supporting repos — Test holds primary codebase; CI/CD are optional. */
+const SLOT_ROLES: { role: GraphRole; label: string; hint: string }[] = [
+  { role: "test", label: "Application & tests", hint: "Main codebase (required)" },
+  { role: "ci", label: "CI", hint: "Pipelines, GitHub Actions, Jenkins" },
+  { role: "cd", label: "CD", hint: "Deploy, infra, Helm, Terraform" },
+];
 
 export default function ProjectDetailPage() {
   const id = useParams().id as string;
@@ -41,7 +50,8 @@ export default function ProjectDetailPage() {
   if (!project) return <p className="text-red-400">Project not found.</p>;
 
   const graphsByRole: Record<string, typeof project.graphs> = {};
-  for (const role of ROLES) {
+  const legacySource = project.graphs.filter((g) => g.graph_role === "source");
+  for (const { role } of SLOT_ROLES) {
     graphsByRole[role] = project.graphs.filter((g) => g.graph_role === role);
   }
 
@@ -58,15 +68,21 @@ export default function ProjectDetailPage() {
   };
 
   const handleDeleteGraph = async (graphId: string, graphName: string) => {
-    if (!confirm(`Delete repository index "${graphName}"?`)) return;
+    if (!confirm(`Remove repository index "${graphName}"?`)) return;
     await deleteGraph.mutateAsync(graphId);
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
+      <Breadcrumbs
+        items={[
+          { label: "Projects", href: "/projects" },
+          { label: project.name },
+        ]}
+      />
       <PageHeader
         title={project.name}
-        description={project.description || undefined}
+        description={project.description || "Code intelligence for this product"}
         actions={
           <Button
             variant="destructive"
@@ -78,67 +94,82 @@ export default function ProjectDetailPage() {
             Delete project
           </Button>
         }
+        className="mb-0"
       />
 
-      <ProjectDna projectId={id} projectName={project.name} />
+      <ProjectOnboarding
+        projectId={id}
+        repositoryCount={
+          project.graphs.filter((g) => g.graph_role === "test" || g.graph_role === "source").length
+        }
+      />
+      <ProjectSubnav />
 
-      <ProductMap projectId={id} />
-
-      <ProjectBriefing projectId={id} />
-
-      <div className="flex justify-end">
-        <Button variant="outline" size="sm" asChild>
-          <Link href={`/projects/${id}/investigate`}>Open investigate →</Link>
-        </Button>
-      </div>
-
-      <ProjectAskPanel projectId={id} projectName={project.name} />
-
-      {summary && (
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground">Role completeness</p>
-          <div className="h-2 bg-muted rounded-full mt-2 overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all"
-              style={{ width: `${summary.completeness_pct}%` }}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {summary.present_roles.join(", ") || "none"}
-            {summary.missing_roles.length > 0 &&
-              ` · missing: ${summary.missing_roles.join(", ")}`}
-          </p>
-          {summary.recommendations.length > 0 && (
-            <ul className="mt-3 text-sm text-yellow-400/90 list-disc pl-4">
-              {summary.recommendations.map((r, i) => (
-                <li key={i}>{r}</li>
+      <ProjectSection
+        id="repositories"
+        title="Repositories"
+        description="Test, CI, and CD are your repository slots. Put application code in Test; CI and CD are optional."
+      >
+        {legacySource.length > 0 && (
+          <Card className="p-4 border-amber-500/30 bg-amber-500/5">
+            <p className="text-sm">
+              <span className="font-medium text-amber-400/90">Legacy source repo: </span>
+              {legacySource.map((g) => (
+                <Link
+                  key={g.id}
+                  href={repositoryPath(id, g.id)}
+                  className="text-primary hover:underline ml-1"
+                >
+                  {g.name}
+                </Link>
               ))}
-            </ul>
-          )}
-        </Card>
-      )}
-
-      <section>
-        <h2 className="text-lg font-semibold mb-4">Repository slots</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Ingest one repository per role. Graphs stay in this project only — they cannot be shared
-          across projects.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {ROLES.map((role) => {
+              <span className="text-muted-foreground"> — still used for analysis until you re-ingest under Test.</span>
+            </p>
+          </Card>
+        )}
+        {summary && (
+          <Card className="p-4 border-dashed">
+            <p className="text-sm text-muted-foreground">Role completeness</p>
+            <div className="h-2 bg-muted rounded-full mt-2 overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${summary.completeness_pct}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {summary.present_roles.join(", ") || "none"}
+              {summary.missing_roles.length > 0 &&
+                ` · missing: ${summary.missing_roles.join(", ")}`}
+            </p>
+            {summary.recommendations.length > 0 && (
+              <ul className="mt-3 text-sm text-amber-400/90 list-disc pl-4">
+                {summary.recommendations.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        )}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {SLOT_ROLES.map(({ role, label, hint }) => {
             const assigned = graphsByRole[role]?.[0];
+            const required = role === "test";
             return (
               <Card key={role}>
                 <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                  <CardTitle className="text-sm capitalize flex items-center gap-2">
+                  <CardTitle className="text-sm flex items-center gap-2 flex-wrap">
                     <RoleBadge role={role} />
-                    {role}
+                    {label}
+                    {required && (
+                      <span className="text-[10px] uppercase tracking-wide text-primary">Required</span>
+                    )}
                   </CardTitle>
                   {assigned && (
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-destructive hover:text-destructive"
+                      title="Remove repository index"
                       onClick={() => handleDeleteGraph(assigned.id, assigned.name)}
                       disabled={deleteGraph.isPending}
                     >
@@ -147,16 +178,18 @@ export default function ProjectDetailPage() {
                   )}
                 </CardHeader>
                 <CardContent className="text-sm space-y-3">
+                  <p className="text-xs text-muted-foreground">{hint}</p>
                   {assigned ? (
-                    <>
-                      <Link
-                        href={repositoryPath(id, assigned.id)}
-                        className="hover:text-primary block"
-                      >
-                        <p className="font-medium truncate">{assigned.name}</p>
-                        <StatusBadge status={assigned.status} />
-                      </Link>
-                    </>
+                    <Link
+                      href={repositoryPath(id, assigned.id)}
+                      className="hover:text-primary block rounded-md -m-1 p-1"
+                    >
+                      <p className="font-medium truncate">{assigned.name}</p>
+                      <StatusBadge status={assigned.status} />
+                      {assigned.status === "ready" && (
+                        <p className="text-xs text-muted-foreground mt-2">Open analysis →</p>
+                      )}
+                    </Link>
                   ) : (
                     <IngestDialog
                       projectId={id}
@@ -164,7 +197,7 @@ export default function ProjectDetailPage() {
                       lockRole
                       trigger={
                         <Button variant="outline" size="sm" className="w-full">
-                          Ingest {role}
+                          Add {label}
                         </Button>
                       }
                     />
@@ -174,13 +207,37 @@ export default function ProjectDetailPage() {
             );
           })}
         </div>
-      </section>
+      </ProjectSection>
+
+      <ProjectSection
+        id="understanding"
+        title="Understanding"
+        description="Structural snapshot from your repositories — briefing, product map, and findings."
+      >
+        <ProjectBriefing projectId={id} />
+        <ProductMap projectId={id} />
+      </ProjectSection>
+
+      <ProjectSection
+        id="dna"
+        title="Project DNA"
+        description="Optional AI-written narrative of the whole product (separate from the structural map)."
+      >
+        <ProjectDna projectId={id} projectName={project.name} />
+      </ProjectSection>
+
+      <ProjectSection id="ask" title="Questions">
+        <ProjectAskTeaser projectId={id} />
+      </ProjectSection>
 
       {coverage && (
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold">Functional Coverage</h2>
+        <ProjectSection
+          id="coverage"
+          title="Test coverage"
+          description="Functional entry-point coverage rolled up across repositories in this project."
+        >
           {coverage.warning && (
-            <p className="text-sm text-yellow-400">{coverage.warning}</p>
+            <p className="text-sm text-amber-400/90">{coverage.warning}</p>
           )}
           <div className="flex flex-col sm:flex-row gap-8 items-start">
             <CoverageRing
@@ -200,7 +257,7 @@ export default function ProjectDetailPage() {
             </div>
           </div>
           <EntryPointTable rows={coverage.coverage_gap ?? []} />
-        </section>
+        </ProjectSection>
       )}
     </div>
   );

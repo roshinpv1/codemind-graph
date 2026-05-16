@@ -58,7 +58,7 @@ export function ProjectBriefing({ projectId }: ProjectBriefingProps) {
           <CardTitle className="text-base">Project briefing</CardTitle>
           <CardDescription>
             {data?.message ??
-              "Structural snapshot (areas, findings, metrics). For the full AI narrative, use Code Project DNA above."}
+              "Structural snapshot (areas, findings, metrics). For a full AI narrative, generate Project DNA below."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -169,7 +169,7 @@ export function ProjectBriefing({ projectId }: ProjectBriefingProps) {
             : "—"}
           {" · "}
           <Link href={`/projects/${projectId}/investigate`} className="text-primary hover:underline">
-            Investigate
+            Open Q&A
           </Link>
         </p>
       </CardContent>

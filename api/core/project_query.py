@@ -9,6 +9,7 @@ import networkx as nx
 from api.config import LLM_BACKEND
 from api.core import database, engine, storage
 from api.core.cross_graph import loadable_graphs
+from api.core.project_roles import application_graphs
 from api.core.intent_router import classify_intent, SCENARIO_PACKS
 from api.core.pkb_storage import load_pkb, append_memory
 from api.core.product_ontology import (
@@ -282,9 +283,10 @@ def project_ask(
         if pkb_text:
             context_parts.append(pkb_text)
 
+    structural = application_graphs(loadable)
     depth = min(max(depth, 1), 6)
-    per_graph = max(400, 1200 // max(len(loadable), 1))
-    for gmeta in loadable[:4]:
+    per_graph = max(400, 1200 // max(len(structural), 1))
+    for gmeta in structural[:4]:
         G = engine.load_graph(gmeta["id"])
         role = gmeta["graph_role"] or "source"
         block, ev = _graph_context_block(

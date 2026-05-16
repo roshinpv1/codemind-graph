@@ -18,7 +18,8 @@ from api.routers.coverage import (
     _bfs_from,
     _is_test_node,
 )
-from api.core.cross_graph import loadable_graphs, cross_graph_match_entry_points
+from api.core.cross_graph import loadable_graphs
+from api.core.project_roles import application_graphs, coverage_test_graphs, cross_graph_match_entry_points
 
 
 def _evidence(
@@ -116,7 +117,8 @@ def synthesize_project(
     total_nodes = 0
     total_edges = 0
 
-    for gmeta in loadable:
+    structural = application_graphs(loadable)
+    for gmeta in structural:
         gid = gmeta["id"]
         role = gmeta["graph_role"] or "source"
         G = engine.load_graph(gid)
@@ -194,9 +196,8 @@ def synthesize_project(
     pkb["module_briefs"] = module_briefs
     pkb["subsystems"] = subsystems[:24]
 
-    # ── Capabilities + coverage ──────────────────────────────────────────────
-    source_graphs = by_role.get("source", loadable[:1])
-    loadable_source = [g for g in source_graphs if g in loadable]
+    # ── Capabilities + coverage (application code only) ───────────────────────
+    loadable_source = application_graphs(loadable)
     capabilities: list[dict] = []
     func_pct = 0.0
     gaps_count = 0
@@ -210,9 +211,8 @@ def synthesize_project(
         reachable = _bfs_from(G_source, test_ids) if test_ids else set()
         covered = set(entry_pts.keys()) & reachable
 
-        test_graphs = by_role.get("test", [])
         covered_cross: set[str] = set()
-        for tg in loadable_graphs(test_graphs):
+        for tg in loadable_graphs(coverage_test_graphs(loadable)):
             G_test = engine.load_graph(tg["id"])
             covered_cross |= cross_graph_match_entry_points(G_source, G_test, entry_pts)
 

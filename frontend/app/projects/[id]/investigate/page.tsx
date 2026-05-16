@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { projectsApi } from "@/lib/api";
+import { useProject } from "@/lib/hooks/use-projects";
 import { ProjectScenarios } from "@/components/projects/project-scenarios";
-import { Card, CardContent } from "@/components/ui/card";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,13 +17,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { AnswerCard } from "@/components/projects/answer-card";
+import { projectPath } from "@/lib/routes";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ProjectInvestigatePage() {
   const id = useParams().id as string;
+  const searchParams = useSearchParams();
+  const { data: project, isLoading } = useProject(id);
   const [q, setQ] = useState("");
   const [persona, setPersona] = useState("developer");
+  const [prefilled, setPrefilled] = useState(false);
 
   const { data: personaList } = useQuery({
     queryKey: ["projects", "personas"],
@@ -34,33 +40,46 @@ export default function ProjectInvestigatePage() {
       projectsApi.ask(id, query, p),
   });
 
+  useEffect(() => {
+    const initial = searchParams.get("q");
+    if (initial && !prefilled) {
+      setQ(initial);
+      setPrefilled(true);
+    }
+  }, [searchParams, prefilled]);
+
   const submit = (query: string, p: string) => {
     setQ(query);
     setPersona(p);
     ask.mutate({ query, p });
   };
 
+  if (isLoading) return <Skeleton className="h-64" />;
+
   return (
     <div className="space-y-8 max-w-4xl">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={`/projects/${id}`}>
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Project
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-xl font-semibold">Investigate</h1>
-          <p className="text-sm text-muted-foreground">
-            Ask questions with structured answers and optional technical proof
-          </p>
-        </div>
+      <Breadcrumbs
+        items={[
+          { label: "Projects", href: "/projects" },
+          { label: project?.name ?? "Project", href: projectPath(id) },
+          { label: "Q&A" },
+        ]}
+      />
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Ask about {project?.name ?? "this project"}</h1>
+        <p className="text-sm text-muted-foreground mt-1 max-w-xl">
+          Natural-language answers across all repositories, with optional evidence from the code graph.
+        </p>
       </div>
 
       <ProjectScenarios projectId={id} onSelectQuestion={submit} />
 
       <Card>
-        <CardContent className="pt-6 space-y-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Your question</CardTitle>
+          <CardDescription>Pick a scenario above or type your own.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <form
             className="flex flex-col sm:flex-row gap-2"
             onSubmit={(e) => {
@@ -71,12 +90,12 @@ export default function ProjectInvestigatePage() {
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Your question…"
+              placeholder="e.g. How does authentication work end to end?"
               className="flex-1"
             />
             <Select value={persona} onValueChange={setPersona}>
               <SelectTrigger className="w-full sm:w-[160px]">
-                <SelectValue />
+                <SelectValue placeholder="Perspective" />
               </SelectTrigger>
               <SelectContent>
                 {(personaList?.personas ?? []).map((p) => (

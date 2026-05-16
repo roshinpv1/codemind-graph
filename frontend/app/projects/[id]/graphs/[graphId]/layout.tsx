@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useGraph } from "@/lib/hooks/use-graphs";
+import { useProject } from "@/lib/hooks/use-projects";
 import { GraphTabs } from "@/components/graphs/graph-tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { projectPath } from "@/lib/routes";
@@ -12,6 +13,7 @@ export default function RepositoryLayout({ children }: { children: React.ReactNo
   const projectId = params.id as string;
   const graphId = params.graphId as string;
   const { data: graph, isLoading, error } = useGraph(graphId);
+  const { data: project } = useProject(projectId);
 
   if (isLoading) return <Skeleton className="h-24 mb-6" />;
 
@@ -39,7 +41,7 @@ export default function RepositoryLayout({ children }: { children: React.ReactNo
 
   return (
     <div>
-      <GraphTabs graph={graph} projectId={projectId} />
+      <GraphTabs graph={graph} projectId={projectId} projectName={project?.name} />
       {children}
     </div>
   );

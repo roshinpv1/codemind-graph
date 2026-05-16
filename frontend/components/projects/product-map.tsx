@@ -212,7 +212,7 @@ export function ProductMap({ projectId }: ProductMapProps) {
           Understanding updated {new Date(map.understanding_updated_at).toLocaleString()}
           {" · "}
           <Link href={`/projects/${projectId}/investigate`} className="text-primary hover:underline">
-            Ask questions
+            Open Q&A
           </Link>
         </p>
       )}

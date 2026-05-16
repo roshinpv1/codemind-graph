@@ -12,7 +12,7 @@ interface StatCardsProps {
 
 export function StatCards({ graphCount, projectCount, avgCoverage, violationCount }: StatCardsProps) {
   const stats = [
-    { label: "Graphs", value: graphCount, icon: Network },
+    { label: "Repositories", value: graphCount, icon: Network },
     { label: "Projects", value: projectCount, icon: FolderKanban },
     {
       label: "Avg Functional Coverage",

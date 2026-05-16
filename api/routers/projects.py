@@ -534,18 +534,29 @@ def project_summary(project_id: str):
             "edge_count": g["edge_count"],
         })
 
-    missing_roles = [r for r in ("source", "test", "ci", "cd") if r not in by_role]
-    completeness = round((4 - len(missing_roles)) / 4 * 100)
+    from api.core.project_roles import PROJECT_SLOT_ROLES
+
+    has_app = bool(by_role.get("source") or by_role.get("test"))
+    missing_slots = [r for r in PROJECT_SLOT_ROLES if r not in by_role]
+    completeness = 100 if has_app else 0
+
+    recommendations: list[str] = []
+    if not has_app:
+        recommendations.append(
+            "Add your application repository in the Test slot (or legacy Source role)."
+        )
+    for role in missing_slots:
+        if role == "test" and not has_app:
+            continue
+        label = {"test": "Test", "ci": "CI", "cd": "CD"}.get(role, role)
+        recommendations.append(f"Optional: add a {label} repository for richer coverage and pipeline context.")
 
     return {
         "project_id": project_id,
         "completeness_pct": completeness,
         "present_roles": list(by_role.keys()),
-        "missing_roles": missing_roles,
+        "missing_roles": missing_slots if has_app else ["test", *missing_slots],
         "graphs_by_role": dict(by_role),
         "total_graphs": len(graphs),
-        "recommendations": [
-            f"Add a '{role}' graph to enable full {role.upper()} analysis"
-            for role in missing_roles
-        ],
+        "recommendations": recommendations,
     }

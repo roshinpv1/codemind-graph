@@ -34,10 +34,10 @@ export default function GraphOverviewPage() {
           <Skeleton className="h-24 col-span-4" />
         ) : stats ? (
           <>
-            <StatCard label="Nodes" value={stats.node_count} />
-            <StatCard label="Edges" value={stats.edge_count} />
-            <StatCard label="Communities" value={stats.community_count} />
-            <StatCard label="Avg degree" value={stats.avg_degree.toFixed(2)} />
+            <StatCard label="Components" value={stats.node_count} />
+            <StatCard label="Relationships" value={stats.edge_count} />
+            <StatCard label="Modules" value={stats.community_count} />
+            <StatCard label="Avg connections" value={stats.avg_degree.toFixed(2)} />
           </>
         ) : null}
       </div>
@@ -45,7 +45,7 @@ export default function GraphOverviewPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Top Communities</CardTitle>
+            <CardTitle className="text-base">Largest modules</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {(communities ?? []).slice(0, 8).map((c) => (
@@ -59,7 +59,7 @@ export default function GraphOverviewPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">God Nodes</CardTitle>
+            <CardTitle className="text-base">Highly connected hubs</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {(gods ?? []).slice(0, 8).map((g, i) => (
@@ -75,7 +75,7 @@ export default function GraphOverviewPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Executive Summary</CardTitle>
+          <CardTitle className="text-base">Summary</CardTitle>
         </CardHeader>
         <CardContent>
           {summaryLoading ? (

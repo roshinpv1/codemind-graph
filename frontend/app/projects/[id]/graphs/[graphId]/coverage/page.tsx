@@ -63,7 +63,7 @@ export default function CoveragePage() {
                 variant={mode === m ? "default" : "outline"}
                 onClick={() => setMode(m)}
               >
-                {m}
+                {m === "all" ? "All" : m === "covered" ? "Covered" : "Uncovered"}
               </Button>
             ))}
           </div>

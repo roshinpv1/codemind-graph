@@ -42,7 +42,7 @@ export default function ProjectsPage() {
     e.stopPropagation();
     if (
       !confirm(
-        `Delete project "${projectName}" and ${graphCount} graph(s)? This cannot be undone.`,
+        `Delete project "${projectName}" and ${graphCount} repository index(es)? This cannot be undone.`,
       )
     ) {
       return;
@@ -54,7 +54,7 @@ export default function ProjectsPage() {
     <>
       <PageHeader
         title="Projects"
-        description="Each project owns its graphs (source, test, CI, CD). Graphs cannot be shared across projects."
+        description="Each project uses Test, CI, and CD repository slots. Application code goes in Test."
         actions={
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -93,7 +93,7 @@ export default function ProjectsPage() {
         </div>
       ) : !projects?.length ? (
         <Card className="p-12 text-center text-muted-foreground">
-          <p>Create a project, then ingest repositories into role slots (source, test, ci, cd).</p>
+          <p>Create a project, then add your application repo in the Test slot (CI and CD optional).</p>
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -105,7 +105,9 @@ export default function ProjectsPage() {
                 </CardHeader>
                 <CardContent className="text-sm text-muted-foreground">
                   {p.description || "No description"}
-                  <p className="mt-2">{p.graphs.length} graph{p.graphs.length !== 1 ? "s" : ""}</p>
+                  <p className="mt-2">
+                    {p.graphs.length} repositor{p.graphs.length !== 1 ? "ies" : "y"}
+                  </p>
                 </CardContent>
               </Link>
               <Button
