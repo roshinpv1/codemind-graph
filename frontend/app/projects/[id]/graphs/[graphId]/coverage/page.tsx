@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useParams } from "next/navigation";
 import { useCoverageSummary, useFunctionalCoverage, useCoverageFiles } from "@/lib/hooks/use-coverage";
 import { CoverageRing } from "@/components/coverage/coverage-ring";
 import { EntryPointTable } from "@/components/coverage/entry-point-table";
@@ -10,13 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { gradeColor, cn } from "@/lib/utils";
+import { useRepositoryParams } from "@/lib/hooks/use-repository-params";
 
 export default function CoveragePage() {
-  const id = useParams().id as string;
+  const { graphId } = useRepositoryParams();
   const [mode, setMode] = useState<"all" | "covered" | "uncovered">("uncovered");
-  const { data: summary, isLoading } = useCoverageSummary(id);
-  const { data: functional } = useFunctionalCoverage(id, mode);
-  const { data: files } = useCoverageFiles(id, "functional");
+  const { data: summary, isLoading } = useCoverageSummary(graphId);
+  const { data: functional } = useFunctionalCoverage(graphId, mode);
+  const { data: files } = useCoverageFiles(graphId, "functional");
 
   if (isLoading) return <Skeleton className="h-64" />;
 

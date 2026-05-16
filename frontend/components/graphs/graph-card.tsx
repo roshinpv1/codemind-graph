@@ -6,9 +6,14 @@ import { Button } from "@/components/ui/button";
 import { RoleBadge, StatusBadge } from "@/components/graphs/status-badge";
 import { useDeleteGraph } from "@/lib/hooks/use-graphs";
 import type { GraphMeta } from "@/lib/types";
+import { repositoryPath } from "@/lib/routes";
 import { Network, GitBranch, Trash2 } from "lucide-react";
 
 export function GraphCard({ graph }: { graph: GraphMeta }) {
+  const href =
+    graph.project_id != null
+      ? repositoryPath(graph.project_id, graph.id)
+      : `/graphs/${graph.id}`;
   const del = useDeleteGraph(graph.project_id ?? undefined);
 
   const handleDelete = async (e: React.MouseEvent) => {
@@ -20,7 +25,7 @@ export function GraphCard({ graph }: { graph: GraphMeta }) {
 
   return (
     <Card className="hover:border-primary/50 transition-colors h-full relative group">
-      <Link href={`/graphs/${graph.id}`} className="block">
+      <Link href={href} className="block">
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between gap-2">
             <CardTitle className="text-base truncate pr-8">{graph.name}</CardTitle>
@@ -28,15 +33,6 @@ export function GraphCard({ graph }: { graph: GraphMeta }) {
           </div>
           <div className="flex gap-2 mt-1 flex-wrap">
             <RoleBadge role={graph.graph_role} />
-            {graph.project_id && (
-              <Link
-                href={`/projects/${graph.project_id}`}
-                onClick={(e) => e.stopPropagation()}
-                className="text-xs text-primary hover:underline"
-              >
-                View project
-              </Link>
-            )}
           </div>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">

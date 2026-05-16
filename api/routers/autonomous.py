@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api.core import engine, database
+from api.core.graph_health import count_circular_dependencies, sample_cycles_for_display
 from api.core.storage import graph_dir
 
 router = APIRouter(prefix="/graphs/{graph_id}/autonomous", tags=["Autonomous"])
@@ -65,19 +66,20 @@ def _detect_anomalies(G: nx.Graph) -> list[dict]:
                     "message": f"Node has {d} connections vs avg {avg_deg:.1f} — likely a god object",
                 })
 
-    # 2. Detect circular dependencies
-    try:
-        cycles = list(nx.simple_cycles(G))
-        for cycle in cycles[:10]:
+    # 2. Circular dependencies (bounded — safe on large graphs)
+    cycle_count, cycles_approx = count_circular_dependencies(G)
+    if cycle_count > 0:
+        for cycle in sample_cycles_for_display(G, max_samples=10)[0]:
+            labels = [G.nodes[n].get("label", n) for n in cycle[:6]]
+            suffix = "…" if len(cycle) > 6 else ""
+            kind = "Cyclic dependency group" if cycles_approx else "Circular dependency"
             anomalies.append({
                 "type": "circular_dependency",
                 "severity": "medium",
                 "nodes": cycle,
                 "length": len(cycle),
-                "message": f"Circular dependency chain of length {len(cycle)} detected",
+                "message": f"{kind} ({len(cycle)} components): {' → '.join(labels)}{suffix}",
             })
-    except Exception:
-        pass
 
     # 3. Detect isolated nodes (dead code / orphaned components)
     isolated = list(nx.isolates(G))

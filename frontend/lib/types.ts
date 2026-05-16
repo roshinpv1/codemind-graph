@@ -182,29 +182,6 @@ export interface Anomaly {
   [key: string]: unknown;
 }
 
-export interface ProjectAskSource {
-  graph_id: string;
-  graph_name: string;
-  graph_role: string;
-  context_nodes: number;
-  start_labels: string[];
-}
-
-export interface ProjectAskResult {
-  project_id: string;
-  project_name?: string;
-  question: string;
-  persona: string;
-  persona_label: string;
-  answer: string;
-  context_nodes: number;
-  graphs_used?: number;
-  sources: ProjectAskSource[];
-  backend: string;
-  mode?: string;
-  depth?: number;
-}
-
 export interface ProjectSearchNode {
   id: string;
   label: string;
@@ -223,4 +200,146 @@ export interface ProjectSearchResult {
   graphs_searched?: number;
   nodes: ProjectSearchNode[];
   message?: string | null;
+}
+
+export interface ProductArea {
+  id: string;
+  name: string;
+  component_count?: number;
+  centerpiece?: string;
+  repository?: string;
+  repository_role?: string;
+  summary?: string;
+}
+
+export interface ProductCapability {
+  id: string;
+  name: string;
+  source_file?: string;
+  test_status: string;
+  test_status_key?: string;
+  importance?: string;
+  type?: string;
+}
+
+export interface ProductFinding {
+  id: string;
+  title: string;
+  why_it_matters?: string;
+  severity?: string;
+  severity_label?: string;
+  category?: string;
+  category_key?: string;
+  suggested_action?: string;
+}
+
+export interface ProductJourney {
+  name: string;
+  summary?: string;
+  test_status?: string;
+  steps?: string[];
+}
+
+export interface ProductHealth {
+  status_key?: string;
+  status_label?: string;
+  capabilities_tested_pct?: number;
+  capabilities_total?: number;
+  capabilities_untested?: number;
+  open_findings?: number;
+  product_areas?: number;
+}
+
+export interface ProductMapData {
+  project_id: string;
+  ready: boolean;
+  message?: string;
+  headline?: string;
+  summary?: string;
+  health?: ProductHealth;
+  areas?: ProductArea[];
+  capabilities?: ProductCapability[];
+  findings?: ProductFinding[];
+  journeys?: ProductJourney[];
+  repositories?: { id: string; name: string; role: string; role_label?: string; status?: string; indexed_components?: number }[];
+  understanding_updated_at?: string;
+}
+
+export interface ProjectDna {
+  project_id: string;
+  project_name?: string;
+  ready: boolean;
+  message?: string | null;
+  headline?: string;
+  summary?: string;
+  full_summary?: string | null;
+  health_label?: string;
+  health_key?: string;
+  coverage_grade?: string;
+  generated_at?: string;
+  graphs_ready?: number;
+  metrics?: Record<string, number | string>;
+}
+
+export interface ProjectBriefing {
+  project_id: string;
+  ready: boolean;
+  message?: string;
+  headline?: string;
+  summary?: string;
+  health_label?: string;
+  health_key?: string;
+  capabilities_tested_pct?: number;
+  capabilities_untested?: number;
+  open_findings?: number;
+  top_findings?: ProductFinding[];
+  top_areas?: ProductArea[];
+  understanding_updated_at?: string;
+  /** @deprecated legacy shape */
+  dna?: { headline?: string; summary?: string; health?: string; coverage_grade?: string };
+  metrics?: Record<string, number | string>;
+  risks?: { title: string; severity: string; category?: string; detail?: string }[];
+  flows?: { name: string; description?: string; covered?: boolean }[];
+  synthesized_at?: string;
+}
+
+export interface AnswerCard {
+  summary?: string;
+  confidence?: string;
+  confidence_label?: string;
+  related?: { name: string; type?: string; test_status?: string; file?: string }[];
+  gaps?: string[];
+  suggested_next_steps?: string[];
+}
+
+export interface TechnicalProof {
+  repositories?: { name: string; role: string }[];
+  components?: { label?: string; file?: string; repository?: string }[];
+}
+
+export interface ProjectAskResult {
+  project_id: string;
+  project_name?: string;
+  question: string;
+  persona: string;
+  persona_label: string;
+  intent?: string;
+  answer: string;
+  answer_card?: AnswerCard;
+  technical_proof?: TechnicalProof;
+  understanding_ready?: boolean;
+  structured?: Record<string, unknown>;
+  context_nodes: number;
+  graphs_used?: number;
+  sources: ProjectAskSource[];
+  backend: string;
+  pkb_available?: boolean;
+}
+
+export interface ProjectAskSource {
+  graph_id: string;
+  graph_name: string;
+  graph_role: string;
+  context_nodes?: number;
+  start_labels?: string[];
 }

@@ -1,9 +1,15 @@
 import type { Violation } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 
-export function ViolationsTable({ violations }: { violations: Violation[] }) {
+export function ViolationsTable({
+  violations,
+  emptyMessage = "No violations detected.",
+}: {
+  violations: Violation[];
+  emptyMessage?: string;
+}) {
   if (!violations.length) {
-    return <p className="text-sm text-muted-foreground">No violations detected.</p>;
+    return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;
   }
 
   return (

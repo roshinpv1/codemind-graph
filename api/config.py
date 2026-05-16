@@ -7,10 +7,14 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("CODEMIND_DATA_DIR", str(BASE_DIR / "data")))
 GRAPHS_DIR = DATA_DIR / "graphs"
+PROJECTS_DIR = DATA_DIR / "projects"
 DB_PATH = DATA_DIR / "codemind.db"
 
 GRAPHS_DIR.mkdir(parents=True, exist_ok=True)
+PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+PKB_VERSION = "1"
 
 # ── Extraction backend ─────────────────────────────────────────────────────────
 # Auto-detected from env keys; can be overridden explicitly.

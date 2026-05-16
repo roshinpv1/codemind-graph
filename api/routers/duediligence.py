@@ -7,6 +7,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api.core import engine, database
+from api.core.graph_health import (
+    count_circular_dependencies,
+    dead_code_candidates,
+    dead_code_node_ids,
+)
 
 router = APIRouter(prefix="/graphs/{graph_id}/due-diligence", tags=["Due Diligence"])
 
@@ -36,7 +41,12 @@ def _cohesion_score(G: nx.Graph, communities: dict) -> float:
     return round(sum(scores) / max(len(scores), 1), 3)
 
 
-def _health_score(G: nx.Graph, communities: dict, cycles: list, dead_nodes: list) -> dict:
+def _health_score(
+    G: nx.Graph,
+    communities: dict,
+    cycle_count: int,
+    dead_nodes: list,
+) -> dict:
     """Composite 0–100 architecture health score."""
     node_count = G.number_of_nodes()
     if node_count == 0:
@@ -47,7 +57,7 @@ def _health_score(G: nx.Graph, communities: dict, cycles: list, dead_nodes: list
     cohesion_pts = cohesion * 30
 
     # 2. Circular dep penalty — weight 25
-    cycle_ratio = min(1.0, len(cycles) / max(node_count * 0.1, 1))
+    cycle_ratio = min(1.0, cycle_count / max(node_count * 0.1, 1))
     circular_pts = (1 - cycle_ratio) * 25
 
     # 3. Dead code penalty — weight 20
@@ -88,12 +98,9 @@ def health_score(graph_id: str):
     _require_ready(graph_id)
     G = engine.load_graph(graph_id)
     communities = engine.communities_from_graph(G)
-    dead_nodes = [n for n in G.nodes() if G.in_degree(n) == 0 and G.out_degree(n) == 0] if G.is_directed() else []
-    try:
-        cycles = list(nx.simple_cycles(G))[:200]
-    except Exception:
-        cycles = []
-    score = _health_score(G, communities, cycles, dead_nodes)
+    cycle_count, cycles_approx = count_circular_dependencies(G)
+    dead_nodes = dead_code_node_ids(G)
+    score = _health_score(G, communities, cycle_count, dead_nodes)
     rating = "A" if score["total"] >= 80 else "B" if score["total"] >= 65 else "C" if score["total"] >= 50 else "D"
     return {
         "graph_id": graph_id,
@@ -104,7 +111,8 @@ def health_score(graph_id: str):
             "nodes": G.number_of_nodes(),
             "edges": G.number_of_edges(),
             "communities": len(communities),
-            "circular_deps": len(cycles),
+            "circular_deps": cycle_count,
+            "circular_deps_approximate": cycles_approx,
             "dead_nodes": len(dead_nodes),
         },
     }
@@ -138,20 +146,10 @@ def tech_debt(graph_id: str):
 
 
 @router.get("/dead-code", response_model=list[dict], summary="Unreachable / dead code nodes")
-def dead_code(graph_id: str):
+def dead_code(graph_id: str, limit: int = 500):
     _require_ready(graph_id)
     G = engine.load_graph(graph_id)
-    result = []
-    for n, data in G.nodes(data=True):
-        in_deg = G.in_degree(n) if G.is_directed() else G.degree(n)
-        if in_deg == 0 and data.get("file_type") == "code":
-            result.append({
-                "id": n,
-                "label": data.get("label", n),
-                "source_file": data.get("source_file", ""),
-                "out_degree": G.out_degree(n) if G.is_directed() else G.degree(n),
-            })
-    return sorted(result, key=lambda x: x["source_file"])
+    return dead_code_candidates(G, limit=min(limit, 1000))
 
 
 @router.get("/complexity", response_model=list[dict], summary="Per-community complexity metrics")
@@ -186,16 +184,13 @@ def full_report(graph_id: str, narrative: bool = False, backend: str | None = No
     _require_ready(graph_id)
     G = engine.load_graph(graph_id)
     communities = engine.communities_from_graph(G)
-    dead = [n for n in G.nodes() if (G.in_degree(n) if G.is_directed() else G.degree(n)) == 0]
-    try:
-        cycles = list(nx.simple_cycles(G))[:200]
-    except Exception:
-        cycles = []
-    score = _health_score(G, communities, cycles, dead)
+    cycle_count, cycles_approx = count_circular_dependencies(G)
+    dead = dead_code_node_ids(G)
+    score = _health_score(G, communities, cycle_count, dead)
     gods = engine.get_god_nodes(G, top_n=10)
     rating = "A" if score["total"] >= 80 else "B" if score["total"] >= 65 else "C" if score["total"] >= 50 else "D"
     risks = [
-        *(["High circular dependency count indicates tight coupling"] if len(cycles) > 10 else []),
+        *(["High circular dependency count indicates tight coupling"] if cycle_count > 10 else []),
         *(["Significant dead code detected"] if len(dead) > G.number_of_nodes() * 0.1 else []),
         *(["Very high-degree god nodes — single points of failure"] if gods and gods[0].get("degree", 0) > 50 else []),
     ]
@@ -208,11 +203,12 @@ def full_report(graph_id: str, narrative: bool = False, backend: str | None = No
             "nodes": G.number_of_nodes(),
             "edges": G.number_of_edges(),
             "communities": len(communities),
-            "circular_deps": len(cycles),
+            "circular_deps": cycle_count,
+            "circular_deps_approximate": cycles_approx,
             "dead_nodes": len(dead),
         },
         "god_nodes": gods[:10],
-        "top_circular_deps": [{"cycle": c, "length": len(c)} for c in cycles[:5]],
+        "top_circular_deps": [],
         "risks": risks,
     }
     if narrative:
@@ -225,7 +221,7 @@ def full_report(graph_id: str, narrative: bool = False, backend: str | None = No
             f"circular_deps_penalty={score['breakdown']['circular_dep_penalty']}, "
             f"dead_code_penalty={score['breakdown']['dead_code_penalty']}\n"
             f"GRAPH: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges, {len(communities)} modules\n"
-            f"CIRCULAR DEPS: {len(cycles)}\n"
+            f"CIRCULAR DEPS: {cycle_count}\n"
             f"DEAD CODE: {len(dead)} nodes ({round(len(dead)/max(G.number_of_nodes(),1)*100)}%)\n"
             f"GOD NODES: {', '.join(god_labels)}\n"
             f"RISKS: {'; '.join(risks) or 'None identified'}\n\n"

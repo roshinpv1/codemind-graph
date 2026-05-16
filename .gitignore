@@ -52,6 +52,9 @@ frontend/.vercel/
 # ── CodeMind runtime data (graphs, SQLite, ingest artifacts) ──────────────────
 data/*
 !data/.gitkeep
+!data/projects/
+data/projects/*
+!data/projects/**/.gitkeep
 *.db
 *.db-shm
 *.db-wal

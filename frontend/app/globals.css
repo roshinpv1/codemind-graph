@@ -33,3 +33,117 @@
     @apply bg-background text-foreground antialiased;
   }
 }
+
+/* Shared long-form / AI text (Code Project DNA, docs, answers) */
+@layer components {
+  .cm-rich-text {
+    @apply text-sm text-foreground leading-relaxed;
+    max-width: 72ch;
+  }
+
+  .cm-rich-text--document {
+    @apply rounded-lg border border-border/60 bg-background/40 px-5 py-4;
+  }
+
+  .cm-rich-text--panel {
+    @apply rounded-lg border border-border/50 bg-muted/20 px-4 py-3;
+  }
+
+  .cm-rich-text--inline {
+    @apply max-w-none;
+  }
+
+  .cm-rich-text .cm-rich-heading {
+    @apply font-semibold text-foreground tracking-tight scroll-mt-4;
+  }
+
+  .cm-rich-text .cm-rich-h1 {
+    @apply text-lg mt-0 mb-3;
+  }
+
+  .cm-rich-text .cm-rich-h2 {
+    @apply text-base mt-6 mb-2 first:mt-0;
+  }
+
+  .cm-rich-text .cm-rich-h3 {
+    @apply text-sm mt-4 mb-1.5;
+  }
+
+  .cm-rich-text .cm-rich-h4 {
+    @apply text-sm mt-3 mb-1 text-muted-foreground;
+  }
+
+  .cm-rich-text .cm-rich-p {
+    @apply text-sm leading-relaxed text-foreground/95 mb-3 last:mb-0;
+  }
+
+  .cm-rich-text--plain .cm-rich-p + .cm-rich-p {
+    @apply mt-3;
+  }
+
+  .cm-rich-text .cm-rich-ul,
+  .cm-rich-text .cm-rich-ol {
+    @apply my-3 pl-5 space-y-1.5 text-sm text-foreground/95;
+  }
+
+  .cm-rich-text .cm-rich-ul {
+    @apply list-disc;
+  }
+
+  .cm-rich-text .cm-rich-ol {
+    @apply list-decimal;
+  }
+
+  .cm-rich-text .cm-rich-li {
+    @apply leading-relaxed pl-0.5;
+  }
+
+  .cm-rich-text .cm-rich-li > p {
+    @apply mb-1;
+  }
+
+  .cm-rich-text .cm-rich-strong {
+    @apply font-semibold text-foreground;
+  }
+
+  .cm-rich-text .cm-rich-em {
+    @apply italic text-foreground/90;
+  }
+
+  .cm-rich-text .cm-rich-link {
+    @apply text-primary underline-offset-2 hover:underline;
+  }
+
+  .cm-rich-text .cm-rich-code {
+    @apply rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground;
+  }
+
+  .cm-rich-text .cm-rich-pre {
+    @apply my-3 overflow-x-auto rounded-md border border-border/50 bg-background/80 p-3;
+  }
+
+  .cm-rich-text .cm-rich-pre .cm-rich-code-block {
+    @apply bg-transparent p-0 text-xs leading-relaxed;
+  }
+
+  .cm-rich-text .cm-rich-quote {
+    @apply my-3 border-l-2 border-primary/40 pl-3 text-muted-foreground italic;
+  }
+
+  .cm-rich-text .cm-rich-hr {
+    @apply my-5 border-border/60;
+  }
+
+  /* Legacy prose-invert fallback where RichText not yet applied */
+  .prose.prose-invert {
+    @apply text-sm text-foreground leading-relaxed max-w-none;
+  }
+
+  .prose.prose-invert :where(h1, h2, h3, h4):not(:where([class~="not-prose"] *)) {
+    @apply font-semibold text-foreground;
+  }
+
+  .prose.prose-invert :where(p):not(:where([class~="not-prose"] *)) {
+    @apply leading-relaxed text-foreground/95;
+  }
+}

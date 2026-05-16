@@ -20,6 +20,10 @@ def run_extraction(
         database.upsert_graph(graph_id, status="running")
         _extract(graph_id, Path(source_path), backend, dedup_llm=dedup_llm, use_semantic=use_semantic)
         database.upsert_graph(graph_id, status="ready")
+        row = database.get_graph(graph_id)
+        if row and row["project_id"]:
+            from api.core.project_synthesis import maybe_synthesize_project
+            maybe_synthesize_project(row["project_id"], backend=backend)
     except Exception as exc:  # noqa: BLE001
         tb = traceback.format_exc()
         print(f"[pipeline] graph {graph_id} failed: {exc}\n{tb}", file=sys.stderr)

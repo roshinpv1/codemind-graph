@@ -1,28 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { useParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { searchApi, graphsApi } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { RichText } from "@/components/ui/rich-text";
 import type { QueryNode } from "@/lib/types";
+import { useRepositoryParams } from "@/lib/hooks/use-repository-params";
 
 export default function SearchPage() {
-  const id = useParams().id as string;
+  const { graphId } = useRepositoryParams();
   const [q, setQ] = useState("");
   const [explaining, setExplaining] = useState<string | null>(null);
   const [explanation, setExplanation] = useState("");
 
   const search = useMutation({
-    mutationFn: (query: string) => searchApi.search(id, query),
+    mutationFn: (query: string) => searchApi.search(graphId, query),
   });
 
   const handleExplain = async (nodeId: string) => {
     setExplaining(nodeId);
     try {
-      const res = await graphsApi.explainNode(id, nodeId);
+      const res = await graphsApi.explainNode(graphId, nodeId);
       setExplanation(String((res as Record<string, unknown>).explanation ?? JSON.stringify(res)));
     } finally {
       setExplaining(null);
@@ -75,7 +76,7 @@ export default function SearchPage() {
 
       {explanation && (
         <Card className="p-4">
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{explanation}</p>
+          <RichText content={explanation} mode="auto" variant="panel" className="max-w-none" />
         </Card>
       )}
     </div>

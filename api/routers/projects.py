@@ -20,7 +20,14 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from api.core import database, engine, storage
+from api.core.cross_graph import loadable_graphs
 from api.core.project_query import list_personas, project_ask, project_search
+from api.core.project_synthesis import synthesize_project, compute_delta, maybe_synthesize_project
+from api.core.project_dna import generate_project_dna, get_project_dna
+from api.core import pkb_storage
+from api.core.intent_router import SCENARIO_PACKS
+from api.core.project_query import get_briefing, list_scenarios
+from api.core.product_ontology import get_product_map, get_findings as get_findings_ontology
 from api.config import LLM_BACKEND
 from api.models.common import (
     AssignGraphRequest, GraphMeta, GraphRole,
@@ -67,14 +74,6 @@ def _require_ready_graph(graph_id: str):
             f"Graph {graph_id!r} has no on-disk data. Re-ingest or run update.",
         )
     return row
-
-
-def _loadable_graphs(graphs: list) -> list:
-    """Graphs that are ready in the DB and have graph.json on disk."""
-    return [
-        g for g in graphs
-        if g["status"] == "ready" and storage.graph_exists(g["id"])
-    ]
 
 
 def _build_project_out(project_id: str) -> ProjectOut:
@@ -262,7 +261,7 @@ def project_coverage(project_id: str, limit: int = 50):
     if not source_graphs:
         raise HTTPException(400, "No 'source' graph in project. Ingest production code first.")
 
-    loadable_source = _loadable_graphs(source_graphs)
+    loadable_source = loadable_graphs(source_graphs)
     if not loadable_source:
         summary = ", ".join(f"{g['name']!r} ({g['status']})" for g in source_graphs)
         raise HTTPException(
@@ -289,7 +288,7 @@ def project_coverage(project_id: str, limit: int = 50):
     # ── Strategy 2: cross-graph label matching ────────────────────────────────
     test_info: list[dict] = []
     covered_cross: set[str] = set()
-    for tg in _loadable_graphs(test_graphs):
+    for tg in loadable_graphs(test_graphs):
         G_test = engine.load_graph(tg["id"])
         test_info.append({
             "graph_id": tg["id"],
@@ -376,6 +375,115 @@ def project_search_route(
     return project_search(
         project_id, q, mode=mode, depth=min(depth, 6), roles=role_list, top_n=top_n
     )
+
+
+@router.get("/{project_id}/map", response_model=dict, summary="Product map — areas, capabilities, findings")
+def project_map_route(project_id: str):
+    _require_project(project_id)
+    return get_product_map(project_id)
+
+
+@router.get("/{project_id}/findings", response_model=dict, summary="Findings register (human-readable)")
+def project_findings_route(project_id: str, category: str | None = None, limit: int = 30):
+    _require_project(project_id)
+    pkb = pkb_storage.load_pkb(project_id)
+    if not pkb:
+        raise HTTPException(
+            409,
+            "Refresh project understanding first (POST /projects/{id}/synthesize).",
+        )
+    return get_findings_ontology(project_id, category=category, limit=limit)
+
+
+@router.post("/{project_id}/synthesize", response_model=dict, summary="Refresh project understanding")
+def project_synthesize_route(
+    project_id: str,
+    use_llm: bool = True,
+    backend: str | None = None,
+):
+    """Build product map: areas, capabilities, findings, journeys from indexed repositories."""
+    _require_project(project_id)
+    from api.config import LLM_BACKEND as default_backend
+    pkb = synthesize_project(project_id, backend=backend or default_backend, use_llm=use_llm)
+    return {"ok": True, "project_id": project_id, "meta": pkb.get("meta"), "metrics": pkb.get("metrics")}
+
+
+@router.get("/{project_id}/briefing", response_model=dict, summary="Project intelligence briefing")
+def project_briefing_route(project_id: str):
+    _require_project(project_id)
+    return get_briefing(project_id)
+
+
+@router.get("/{project_id}/dna", response_model=dict, summary="Code Project DNA — full AI summary")
+def project_dna_route(project_id: str):
+    _require_project(project_id)
+    return get_project_dna(project_id)
+
+
+@router.post("/{project_id}/dna/generate", response_model=dict, summary="Generate Code Project DNA (LLM narrative)")
+def project_dna_generate_route(
+    project_id: str,
+    use_llm: bool = True,
+    backend: str | None = None,
+):
+    """Build the complete AI-written project summary. Requires prior synthesize."""
+    _require_project(project_id)
+    from api.config import LLM_BACKEND as default_backend
+    try:
+        return generate_project_dna(
+            project_id,
+            backend=backend or default_backend,
+            use_llm=use_llm,
+        )
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@router.get("/{project_id}/risks", response_model=dict, summary="Findings (alias)")
+def project_risks_route(project_id: str, limit: int = 30):
+    _require_project(project_id)
+    return get_findings_ontology(project_id, limit=limit)
+
+
+@router.get("/{project_id}/capabilities", response_model=dict, summary="Capabilities with test status")
+def project_capabilities_route(project_id: str, uncovered_only: bool = False, limit: int = 50):
+    _require_project(project_id)
+    data = get_product_map(project_id)
+    if not data.get("ready"):
+        raise HTTPException(409, "Refresh project understanding first.")
+    caps = data.get("capabilities", [])
+    if uncovered_only:
+        caps = [c for c in caps if c.get("test_status_key") == "untested"]
+    return {
+        "project_id": project_id,
+        "capabilities": caps[:limit],
+        "health": data.get("health"),
+    }
+
+
+@router.get("/{project_id}/scenarios", response_model=dict, summary="Pre-built question packs by persona")
+def project_scenarios_route(project_id: str):
+    _require_project(project_id)
+    return {"project_id": project_id, "scenarios": list_scenarios().get("scenarios", SCENARIO_PACKS)}
+
+
+@router.post("/{project_id}/visit", response_model=dict, summary="Record project visit for delta briefing")
+def project_visit_route(project_id: str):
+    _require_project(project_id)
+    ts = pkb_storage.record_visit(project_id)
+    return {"ok": True, "visited_at": ts}
+
+
+@router.get("/{project_id}/delta", response_model=dict, summary="Changes since last visit / synthesis")
+def project_delta_route(project_id: str):
+    _require_project(project_id)
+    return compute_delta(project_id)
+
+
+@router.get("/{project_id}/memory", response_model=dict, summary="Project Q&A memory")
+def project_memory_list(project_id: str, limit: int = 20):
+    _require_project(project_id)
+    return {"project_id": project_id, "items": pkb_storage.list_memory(project_id, limit=limit)}
 
 
 @router.get("/{project_id}/ask", response_model=dict, summary="AI Q&A across all project graphs")

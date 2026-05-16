@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from api.core import engine, database
 from api.core.docgen import generate_docs_artifacts
+from api.core.doc_guide import build_docs_overview, cache_plain_summary
 from api.core.storage import graph_dir, report_path, wiki_path, graph_json_path
 
 router = APIRouter(prefix="/graphs/{graph_id}/docs", tags=["Docs"])
@@ -60,6 +61,25 @@ def generate_docs(graph_id: str):
         "graph_id": graph_id,
         **artifacts,
     }
+
+
+@router.get("/overview", response_model=dict, summary="Plain-language documentation overview")
+def get_docs_overview(graph_id: str):
+    """User-facing guide: areas, wiki summaries, report highlights — not raw graph audit."""
+    _require_ready(graph_id)
+    return build_docs_overview(graph_id)
+
+
+@router.post("/overview/summary", response_model=dict, summary="Generate and cache plain-language summary (LLM)")
+def generate_plain_summary(graph_id: str, backend: str | None = None):
+    _require_ready(graph_id)
+    from api.config import LLM_BACKEND as default_backend
+    G = engine.load_graph(graph_id)
+    result = engine.llm_architecture_summary(G, backend=backend or default_backend)
+    summary = result.get("summary", "")
+    if summary:
+        cache_plain_summary(graph_id, summary)
+    return {"ok": True, "graph_id": graph_id, "plain_summary": summary, "backend": result.get("backend")}
 
 
 @router.get("/report", response_class=PlainTextResponse, summary="Architecture report (Markdown)")

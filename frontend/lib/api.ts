@@ -127,13 +127,20 @@ export const coverageApi = {
 
 export const architectApi = {
   violations: (id: string, narrative = false) =>
-    request<{ violations: import("./types").Violation[]; count: number; narrative?: string }>(
-      `/graphs/${id}/architect/violations?narrative=${narrative}`,
-    ),
+    request<{
+      violations: import("./types").Violation[];
+      count: number;
+      structural_findings?: import("./types").Violation[];
+      structural_count?: number;
+      policies_configured?: boolean;
+      narrative?: string;
+    }>(`/graphs/${id}/architect/violations?narrative=${narrative}`),
   circularDeps: (id: string) =>
-    request<{ cycle: { id: string; label: string }[]; length: number }[]>(
-      `/graphs/${id}/architect/circular-deps`,
-    ),
+    request<{
+      cycles: { cycle: { id: string; label: string }[]; length: number; approximate_group?: boolean }[];
+      count: number;
+      approximate?: boolean;
+    }>(`/graphs/${id}/architect/circular-deps`),
   layerViolations: (id: string, layers?: string) =>
     request<Record<string, unknown>[]>(
       `/graphs/${id}/architect/layer-violations${layers ? `?layers=${layers}` : ""}`,
@@ -205,7 +212,45 @@ export const searchApi = {
 
 // ── Docs ────────────────────────────────────────────────────────────────────────
 
+export interface DocsOverview {
+  graph_id: string;
+  repository_name?: string;
+  ready: boolean;
+  message?: string;
+  audience_note?: string;
+  plain_summary?: string | null;
+  plain_summary_available?: boolean;
+  product_areas?: {
+    id: string;
+    name: string;
+    centerpiece?: string;
+    component_count: number;
+    source_files?: string[];
+  }[];
+  wiki_guides?: {
+    id: string;
+    title: string;
+    summary?: string | null;
+    key_items?: string[];
+    source_files?: string[];
+  }[];
+  report_highlights?: {
+    stats_line?: string | null;
+    key_components?: { name: string; connection_count: number }[];
+    notable_connections?: string[];
+    suggested_questions?: string[];
+  };
+  artifacts?: { report?: boolean; wiki?: boolean; callflow?: boolean; tree?: boolean };
+  suggested_actions?: string[];
+}
+
 export const docsApi = {
+  overview: (id: string) => request<DocsOverview>(`/graphs/${id}/docs/overview`),
+  generatePlainSummary: (id: string) =>
+    request<{ ok: boolean; plain_summary?: string }>(
+      `/graphs/${id}/docs/overview/summary`,
+      { method: "POST" },
+    ),
   report: (id: string) => request<string>(`/graphs/${id}/docs/report`),
   wiki: (id: string) => request<Record<string, string>>(`/graphs/${id}/docs/wiki`),
   generate: (id: string) =>
@@ -267,13 +312,49 @@ export const projectsApi = {
   personas: () =>
     request<{ personas: { id: string; label: string }[] }>("/projects/personas"),
   ask: (id: string, q: string, persona = "developer", mode = "bfs", depth = 3) =>
-    request<import("./types").ProjectAskResult>(
+    request<import("./types").ProjectAskResult & { structured?: Record<string, unknown>; intent?: string; pkb_available?: boolean }>(
       `/projects/${id}/ask?q=${encodeURIComponent(q)}&persona=${encodeURIComponent(persona)}&mode=${mode}&depth=${depth}`,
     ),
   search: (id: string, q: string, mode = "bfs", depth = 3) =>
     request<import("./types").ProjectSearchResult>(
       `/projects/${id}/search?q=${encodeURIComponent(q)}&mode=${mode}&depth=${depth}`,
     ),
+  synthesize: (id: string, useLlm = true) =>
+    request<Record<string, unknown>>(
+      `/projects/${id}/synthesize?use_llm=${useLlm}`,
+      { method: "POST" },
+    ),
+  dna: (id: string) => request<import("./types").ProjectDna>(`/projects/${id}/dna`),
+  generateDna: (id: string, useLlm = true) =>
+    request<import("./types").ProjectDna>(
+      `/projects/${id}/dna/generate?use_llm=${useLlm}`,
+      { method: "POST" },
+    ),
+  briefing: (id: string) =>
+    request<import("./types").ProjectBriefing>(`/projects/${id}/briefing`),
+  map: (id: string) =>
+    request<import("./types").ProductMapData>(`/projects/${id}/map`),
+  findings: (id: string, category?: string, limit = 30) =>
+    request<{ project_id: string; findings: import("./types").ProductFinding[]; count: number }>(
+      `/projects/${id}/findings?limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ""}`,
+    ),
+  risks: (id: string, limit = 30) =>
+    request<{ risks: Record<string, unknown>[]; count: number }>(
+      `/projects/${id}/risks?limit=${limit}`,
+    ),
+  capabilities: (id: string, uncoveredOnly = false) =>
+    request<{ capabilities: Record<string, unknown>[]; metrics: Record<string, unknown> }>(
+      `/projects/${id}/capabilities?uncovered_only=${uncoveredOnly}`,
+    ),
+  scenarios: (id: string) =>
+    request<{ scenarios: Record<string, { title: string; persona: string; questions: string[] }> }>(
+      `/projects/${id}/scenarios`,
+    ),
+  visit: (id: string) =>
+    request<{ ok: boolean; visited_at: string }>(`/projects/${id}/visit`, { method: "POST" }),
+  delta: (id: string) => request<Record<string, unknown>>(`/projects/${id}/delta`),
+  memory: (id: string, limit = 20) =>
+    request<{ items: Record<string, unknown>[] }>(`/projects/${id}/memory?limit=${limit}`),
 };
 
 export { ApiError };

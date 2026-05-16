@@ -6,8 +6,9 @@ import { cn } from "@/lib/utils";
 import { RoleBadge, StatusBadge } from "@/components/graphs/status-badge";
 import { Button } from "@/components/ui/button";
 import { useDeleteGraph } from "@/lib/hooks/use-graphs";
+import { repositoryPath, projectPath } from "@/lib/routes";
 import type { GraphMeta } from "@/lib/types";
-import { Trash2 } from "lucide-react";
+import { Trash2, ChevronLeft } from "lucide-react";
 
 const tabs = [
   { href: "", label: "Overview" },
@@ -19,36 +20,34 @@ const tabs = [
   { href: "/docs", label: "Docs" },
 ];
 
-export function GraphTabs({ graph }: { graph: GraphMeta }) {
+export function GraphTabs({ graph, projectId }: { graph: GraphMeta; projectId: string }) {
   const pathname = usePathname();
   const router = useRouter();
-  const base = `/graphs/${graph.id}`;
-  const del = useDeleteGraph(graph.project_id ?? undefined);
+  const base = repositoryPath(projectId, graph.id);
+  const del = useDeleteGraph(projectId);
 
   const handleDelete = async () => {
-    if (!confirm(`Delete graph "${graph.name}"?`)) return;
+    if (!confirm(`Delete repository "${graph.name}"?`)) return;
     await del.mutateAsync(graph.id);
-    if (graph.project_id) {
-      router.push(`/projects/${graph.project_id}`);
-    } else {
-      router.push("/projects");
-    }
+    router.push(projectPath(projectId));
   };
 
   return (
     <div className="mb-6 border-b border-border pb-4">
+      <Link
+        href={projectPath(projectId)}
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3"
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Back to project
+      </Link>
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <h1 className="text-2xl font-bold">{graph.name}</h1>
         <StatusBadge status={graph.status} />
         <RoleBadge role={graph.graph_role} />
-        {graph.project_id && (
-          <Link href={`/projects/${graph.project_id}`} className="text-sm text-primary hover:underline">
-            View project
-          </Link>
-        )}
         {graph.status === "ready" && (
           <span className="text-sm text-muted-foreground">
-            {graph.node_count} nodes · {graph.edge_count} edges
+            {graph.node_count} components · {graph.edge_count} relationships
           </span>
         )}
         <Button
@@ -64,7 +63,7 @@ export function GraphTabs({ graph }: { graph: GraphMeta }) {
       </div>
       {graph.status !== "ready" && (
         <p className="text-sm text-yellow-400 mb-4">
-          Graph is {graph.status}. Analysis tabs unlock when indexing completes.
+          Indexing is {graph.status}. Analysis tabs unlock when this repository is ready.
         </p>
       )}
       <nav className="flex flex-wrap gap-1">

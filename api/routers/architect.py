@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from api.core import engine, database
+from api.core.graph_health import sample_cycles_for_display, structural_architecture_findings
 from api.core.storage import graph_dir
 from api.models.common import ViolationOut, OkResponse
 
@@ -152,7 +153,14 @@ def get_violations(graph_id: str, narrative: bool = False, backend: str | None =
                                 relation=data.get("relation", ""),
                                 message=r.description or f"Cross-community edge violates bounded-context rule '{r.name}'",
                             ))
-    result: dict = {"violations": [v.model_dump() for v in violations], "count": len(violations)}
+    structural = structural_architecture_findings(G)
+    result: dict = {
+        "violations": [v.model_dump() for v in violations],
+        "count": len(violations),
+        "structural_findings": structural,
+        "structural_count": len(structural),
+        "policies_configured": len(policies) > 0,
+    }
     if narrative and violations:
         from api.config import LLM_BACKEND
         sample = violations[:10]
@@ -174,22 +182,25 @@ def get_violations(graph_id: str, narrative: bool = False, backend: str | None =
     return result
 
 
-@router.get("/circular-deps", response_model=list[dict], summary="Detect circular dependency chains")
-def circular_deps(graph_id: str):
+@router.get("/circular-deps", response_model=dict, summary="Detect circular dependency chains")
+def circular_deps(graph_id: str, limit: int = 20):
     _require_ready(graph_id)
     G = engine.load_graph(graph_id)
-    try:
-        import networkx as nx
-        cycles = list(nx.simple_cycles(G))
-        return [
-            {
-                "cycle": [{"id": n, "label": G.nodes[n].get("label", n)} for n in cycle],
-                "length": len(cycle),
-            }
-            for cycle in sorted(cycles, key=len)[:50]
-        ]
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
+    cycles, approximate = sample_cycles_for_display(G, max_samples=min(limit, 50))
+    items = [
+        {
+            "cycle": [{"id": n, "label": G.nodes[n].get("label", n)} for n in cycle],
+            "length": len(cycle),
+            "approximate_group": approximate and len(cycle) > 1,
+        }
+        for cycle in sorted(cycles, key=len, reverse=True)
+    ]
+    return {
+        "graph_id": graph_id,
+        "cycles": items,
+        "count": len(items),
+        "approximate": approximate,
+    }
 
 
 @router.get("/layer-violations", response_model=list[dict], summary="Cross-layer import analysis")

@@ -1,30 +1,30 @@
 "use client";
 
-import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { graphsApi } from "@/lib/api";
 import { useGraphStats } from "@/lib/hooks/use-graphs";
+import { useRepositoryParams } from "@/lib/hooks/use-repository-params";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import ReactMarkdown from "react-markdown";
+import { RichText } from "@/components/ui/rich-text";
 
 export default function GraphOverviewPage() {
-  const id = useParams().id as string;
-  const { data: stats, isLoading: statsLoading } = useGraphStats(id);
+  const { graphId } = useRepositoryParams();
+  const { data: stats, isLoading: statsLoading } = useGraphStats(graphId);
   const { data: communities } = useQuery({
-    queryKey: ["graphs", id, "communities"],
-    queryFn: () => graphsApi.communities(id),
-    enabled: !!id,
+    queryKey: ["graphs", graphId, "communities"],
+    queryFn: () => graphsApi.communities(graphId),
+    enabled: !!graphId,
   });
   const { data: gods } = useQuery({
-    queryKey: ["graphs", id, "gods"],
-    queryFn: () => graphsApi.gods(id),
-    enabled: !!id,
+    queryKey: ["graphs", graphId, "gods"],
+    queryFn: () => graphsApi.gods(graphId),
+    enabled: !!graphId,
   });
   const { data: summary, isLoading: summaryLoading } = useQuery({
-    queryKey: ["graphs", id, "summarize"],
-    queryFn: () => graphsApi.summarize(id),
-    enabled: !!id,
+    queryKey: ["graphs", graphId, "summarize"],
+    queryFn: () => graphsApi.summarize(graphId),
+    enabled: !!graphId,
   });
 
   return (
@@ -77,13 +77,21 @@ export default function GraphOverviewPage() {
         <CardHeader>
           <CardTitle className="text-base">Executive Summary</CardTitle>
         </CardHeader>
-        <CardContent className="prose prose-invert prose-sm max-w-none">
+        <CardContent>
           {summaryLoading ? (
             <Skeleton className="h-32" />
           ) : (
-            <ReactMarkdown>
-              {String((summary as Record<string, unknown>)?.summary ?? (summary as Record<string, unknown>)?.narrative ?? "Run LLM summarize to generate an executive summary.")}
-            </ReactMarkdown>
+            <RichText
+              content={String(
+                (summary as Record<string, unknown>)?.summary ??
+                  (summary as Record<string, unknown>)?.narrative ??
+                  "",
+              )}
+              mode="auto"
+              variant="panel"
+              className="max-w-none"
+              emptyMessage="Run LLM summarize to generate an executive summary."
+            />
           )}
         </CardContent>
       </Card>

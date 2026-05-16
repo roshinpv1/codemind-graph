@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
-import { useGraphs } from "@/lib/hooks/use-graphs";
+import { useProjects } from "@/lib/hooks/use-projects";
+import { repositoryPath, projectPath } from "@/lib/routes";
 import { Search } from "lucide-react";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const router = useRouter();
-  const { data: graphs } = useGraphs();
+  const { data: projects } = useProjects();
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -34,7 +35,7 @@ export function CommandPalette() {
           <div className="flex items-center border-b px-3 pb-2">
             <Search className="mr-2 h-4 w-4 text-muted-foreground" />
             <Command.Input
-              placeholder="Search graphs, jump to coverage…"
+              placeholder="Search projects and repositories…"
               className="flex-1 bg-transparent outline-none text-sm"
             />
           </div>
@@ -42,32 +43,35 @@ export function CommandPalette() {
             <Command.Empty className="py-6 text-center text-sm text-muted-foreground">
               No results.
             </Command.Empty>
-            <Command.Group heading="Graphs">
-              {(graphs ?? []).map((g) => (
+            {(projects ?? []).map((p) => (
+              <Command.Group key={p.id} heading={p.name}>
                 <Command.Item
-                  key={g.id}
-                  value={g.name}
+                  value={`${p.name} project`}
                   onSelect={() => {
-                    router.push(`/graphs/${g.id}`);
+                    router.push(projectPath(p.id));
                     setOpen(false);
                   }}
                   className="cursor-pointer rounded px-2 py-1.5 text-sm aria-selected:bg-accent"
                 >
-                  {g.name}
-                  <span className="ml-2 text-xs text-muted-foreground">{g.graph_role}</span>
+                  Open project
                 </Command.Item>
-              ))}
-            </Command.Group>
+                {p.graphs.map((g) => (
+                  <Command.Item
+                    key={g.id}
+                    value={`${p.name} ${g.name} ${g.graph_role}`}
+                    onSelect={() => {
+                      router.push(repositoryPath(p.id, g.id));
+                      setOpen(false);
+                    }}
+                    className="cursor-pointer rounded px-2 py-1.5 text-sm aria-selected:bg-accent"
+                  >
+                    {g.name}
+                    <span className="ml-2 text-xs text-muted-foreground">{g.graph_role}</span>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            ))}
             <Command.Group heading="Actions">
-              <Command.Item
-                onSelect={() => {
-                  router.push("/graphs");
-                  setOpen(false);
-                }}
-                className="cursor-pointer rounded px-2 py-1.5 text-sm aria-selected:bg-accent"
-              >
-                View all graphs
-              </Command.Item>
               <Command.Item
                 onSelect={() => {
                   router.push("/projects");
@@ -75,7 +79,7 @@ export function CommandPalette() {
                 }}
                 className="cursor-pointer rounded px-2 py-1.5 text-sm aria-selected:bg-accent"
               >
-                View projects
+                All projects
               </Command.Item>
             </Command.Group>
           </Command.List>

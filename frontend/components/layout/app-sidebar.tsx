@@ -2,18 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  FolderKanban,
-  Network,
-  Brain,
-} from "lucide-react";
+import { LayoutDashboard, FolderKanban, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/graphs", label: "Graphs", icon: Network },
 ];
 
 export function AppSidebar() {

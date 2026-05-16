@@ -2,8 +2,7 @@
 
 import { PageHeader } from "@/components/layout/page-header";
 import { StatCards } from "@/components/dashboard/stat-cards";
-import { GraphCard } from "@/components/graphs/graph-card";
-import { useGraphs, recentGraphs } from "@/lib/hooks/use-graphs";
+import { useGraphs } from "@/lib/hooks/use-graphs";
 import { useProjects } from "@/lib/hooks/use-projects";
 import { useQuery } from "@tanstack/react-query";
 import { coverageApi } from "@/lib/api";
@@ -33,8 +32,6 @@ export default function DashboardPage() {
     enabled: readyGraphs.length > 0,
   });
 
-  const recent = recentGraphs(graphs, 5);
-
   return (
     <div>
       <PageHeader
@@ -62,7 +59,7 @@ export default function DashboardPage() {
                       <CardTitle className="text-base">{p.name}</CardTitle>
                     </CardHeader>
                     <CardContent className="text-sm text-muted-foreground">
-                      {p.graphs.length} graph{p.graphs.length !== 1 ? "s" : ""} assigned
+                      {p.graphs.length} repositor{p.graphs.length !== 1 ? "ies" : "y"} indexed
                     </CardContent>
                   </Card>
                 </Link>
@@ -71,29 +68,14 @@ export default function DashboardPage() {
           </section>
         )}
 
-        <section>
-          <h2 className="text-lg font-semibold mb-4">Recent Graphs</h2>
-          {graphsLoading ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-32" />
-              ))}
-            </div>
-          ) : recent.length === 0 ? (
-            <Card className="p-8 text-center text-muted-foreground">
-              <p>No graphs yet. Open a project and ingest repositories into role slots.</p>
-              <Button className="mt-4" asChild>
-                <Link href="/projects">Go to projects</Link>
-              </Button>
-            </Card>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {recent.map((g) => (
-                <GraphCard key={g.id} graph={g} />
-              ))}
-            </div>
-          )}
-        </section>
+        {!graphsLoading && (projects?.length ?? 0) === 0 && (
+          <Card className="p-8 text-center text-muted-foreground">
+            <p>Create a project, then ingest repositories into role slots (source, test, CI, CD).</p>
+            <Button className="mt-4" asChild>
+              <Link href="/projects">Create a project</Link>
+            </Button>
+          </Card>
+        )}
       </div>
     </div>
   );

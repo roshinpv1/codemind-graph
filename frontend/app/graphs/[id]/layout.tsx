@@ -1,24 +1,37 @@
 "use client";
 
+import { useEffect } from "react";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import { useGraph } from "@/lib/hooks/use-graphs";
-import { GraphTabs } from "@/components/graphs/graph-tabs";
+import { repositoryPath } from "@/lib/routes";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useParams } from "next/navigation";
 
-export default function GraphLayout({ children }: { children: React.ReactNode }) {
-  const params = useParams();
-  const id = params.id as string;
-  const { data: graph, isLoading, error } = useGraph(id);
+/** Legacy /graphs/:id/* URLs → /projects/:projectId/graphs/:id/* */
+export default function LegacyGraphRedirectLayout({ children }: { children: React.ReactNode }) {
+  const { id } = useParams();
+  const graphId = id as string;
+  const pathname = usePathname();
+  const router = useRouter();
+  const { data: graph, isLoading } = useGraph(graphId);
 
-  if (isLoading) return <Skeleton className="h-24 mb-6" />;
-  if (error || !graph) {
-    return <p className="text-red-400">Graph not found.</p>;
+  useEffect(() => {
+    if (!graph?.project_id) return;
+    const suffix = pathname.replace(`/graphs/${graphId}`, "") || "";
+    router.replace(repositoryPath(graph.project_id, graphId, suffix));
+  }, [graph, graphId, pathname, router]);
+
+  if (isLoading) return <Skeleton className="h-24" />;
+  if (!graph?.project_id) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        This repository is not linked to a project. Open it from{" "}
+        <a href="/projects" className="text-primary hover:underline">
+          Projects
+        </a>
+        .
+      </p>
+    );
   }
 
-  return (
-    <div>
-      <GraphTabs graph={graph} />
-      {children}
-    </div>
-  );
+  return <Skeleton className="h-64" />;
 }

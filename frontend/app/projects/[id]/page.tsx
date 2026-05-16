@@ -19,6 +19,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { GraphRole } from "@/lib/types";
 import { Trash2 } from "lucide-react";
+import { repositoryPath } from "@/lib/routes";
+import { ProjectDna } from "@/components/projects/project-dna";
+import { ProductMap } from "@/components/projects/product-map";
+import { ProjectBriefing } from "@/components/projects/project-briefing";
 import { ProjectAskPanel } from "@/components/projects/project-ask-panel";
 
 const ROLES: GraphRole[] = ["source", "test", "ci", "cd"];
@@ -44,7 +48,7 @@ export default function ProjectDetailPage() {
   const handleDeleteProject = async () => {
     if (
       !confirm(
-        `Delete project "${project.name}" and all ${project.graphs.length} graph(s)? This cannot be undone.`,
+        `Delete project "${project.name}" and all ${project.graphs.length} repository index(es)? This cannot be undone.`,
       )
     ) {
       return;
@@ -54,7 +58,7 @@ export default function ProjectDetailPage() {
   };
 
   const handleDeleteGraph = async (graphId: string, graphName: string) => {
-    if (!confirm(`Delete graph "${graphName}"?`)) return;
+    if (!confirm(`Delete repository index "${graphName}"?`)) return;
     await deleteGraph.mutateAsync(graphId);
   };
 
@@ -75,6 +79,18 @@ export default function ProjectDetailPage() {
           </Button>
         }
       />
+
+      <ProjectDna projectId={id} projectName={project.name} />
+
+      <ProductMap projectId={id} />
+
+      <ProjectBriefing projectId={id} />
+
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`/projects/${id}/investigate`}>Open investigate →</Link>
+        </Button>
+      </div>
 
       <ProjectAskPanel projectId={id} projectName={project.name} />
 
@@ -133,7 +149,10 @@ export default function ProjectDetailPage() {
                 <CardContent className="text-sm space-y-3">
                   {assigned ? (
                     <>
-                      <Link href={`/graphs/${assigned.id}`} className="hover:text-primary block">
+                      <Link
+                        href={repositoryPath(id, assigned.id)}
+                        className="hover:text-primary block"
+                      >
                         <p className="font-medium truncate">{assigned.name}</p>
                         <StatusBadge status={assigned.status} />
                       </Link>
