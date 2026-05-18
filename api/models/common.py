@@ -14,10 +14,10 @@ class GraphStatus(str, Enum):
 
 class GraphRole(str, Enum):
     """What a graph represents within a project."""
-    source = "source"   # production / application code
-    test   = "test"     # regression / automation test suite
-    ci     = "ci"       # CI pipeline definitions (GitHub Actions, Jenkinsfile, etc.)
-    cd     = "cd"       # CD / deployment / infra (Terraform, Helm, K8s manifests)
+    source = "source"   # legacy: application code (prefer ci)
+    ci     = "ci"       # application codebase (primary slot in UI: "Application")
+    test   = "test"     # test suite / automation
+    cd     = "cd"       # deployment / infra (Terraform, Helm, K8s manifests)
 
 
 class GraphMeta(BaseModel):
@@ -52,8 +52,8 @@ class IngestRequest(BaseModel):
         GraphRole.source,
         description=(
             "Role this graph plays within a project. "
-            "'source' = production code, 'test' = regression/automation tests, "
-            "'ci' = CI pipeline files, 'cd' = deployment/infra files."
+            "'ci' = application codebase, 'test' = test suite, "
+            "'cd' = deployment/infra; 'source' = legacy application role."
         ),
     )
     project_id: str = Field(

@@ -18,8 +18,8 @@ from api.routers.coverage import (
     _bfs_from,
     _is_test_node,
 )
-from api.core.cross_graph import loadable_graphs
-from api.core.project_roles import application_graphs, coverage_test_graphs, cross_graph_match_entry_points
+from api.core.cross_graph import loadable_graphs, cross_graph_match_entry_points
+from api.core.project_roles import application_graphs, coverage_test_graphs
 
 
 def _evidence(

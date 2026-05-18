@@ -36,7 +36,7 @@ interface IngestDialogProps {
 export function IngestDialog({
   trigger,
   projectId: fixedProjectId,
-  defaultRole = "test",
+  defaultRole = "ci",
   lockRole = false,
 }: IngestDialogProps) {
   const [open, setOpen] = useState(false);
@@ -93,7 +93,7 @@ export function IngestDialog({
         <DialogHeader>
           <DialogTitle>Ingest into project</DialogTitle>
           <DialogDescription>
-            Each repository belongs to one project. Slots: Test (application code), CI, and CD.
+            Each repository belongs to one project. Slots: Application (CI role), Test, and CD.
           </DialogDescription>
         </DialogHeader>
         {noProjects ? (
@@ -148,8 +148,8 @@ export function IngestDialog({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="test">Application & tests</SelectItem>
-                      <SelectItem value="ci">CI</SelectItem>
+                      <SelectItem value="ci">Application</SelectItem>
+                      <SelectItem value="test">Test</SelectItem>
                       <SelectItem value="cd">CD</SelectItem>
                     </SelectContent>
                   </Select>

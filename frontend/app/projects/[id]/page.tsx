@@ -18,9 +18,9 @@ import { StatusBadge, RoleBadge } from "@/components/graphs/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { GraphRole } from "@/lib/types";
 import { Trash2 } from "lucide-react";
 import { repositoryPath } from "@/lib/routes";
+import { PROJECT_SLOTS } from "@/lib/role-labels";
 import { ProjectDna } from "@/components/projects/project-dna";
 import { ProductMap } from "@/components/projects/product-map";
 import { ProjectBriefing } from "@/components/projects/project-briefing";
@@ -28,13 +28,6 @@ import { ProjectOnboarding } from "@/components/projects/project-onboarding";
 import { ProjectSubnav } from "@/components/projects/project-subnav";
 import { ProjectSection } from "@/components/projects/project-section";
 import { ProjectAskTeaser } from "@/components/projects/project-ask-teaser";
-
-/** Application + supporting repos — Test holds primary codebase; CI/CD are optional. */
-const SLOT_ROLES: { role: GraphRole; label: string; hint: string }[] = [
-  { role: "test", label: "Application & tests", hint: "Main codebase (required)" },
-  { role: "ci", label: "CI", hint: "Pipelines, GitHub Actions, Jenkins" },
-  { role: "cd", label: "CD", hint: "Deploy, infra, Helm, Terraform" },
-];
 
 export default function ProjectDetailPage() {
   const id = useParams().id as string;
@@ -51,7 +44,7 @@ export default function ProjectDetailPage() {
 
   const graphsByRole: Record<string, typeof project.graphs> = {};
   const legacySource = project.graphs.filter((g) => g.graph_role === "source");
-  for (const { role } of SLOT_ROLES) {
+  for (const { role } of PROJECT_SLOTS) {
     graphsByRole[role] = project.graphs.filter((g) => g.graph_role === role);
   }
 
@@ -100,7 +93,11 @@ export default function ProjectDetailPage() {
       <ProjectOnboarding
         projectId={id}
         repositoryCount={
-          project.graphs.filter((g) => g.graph_role === "test" || g.graph_role === "source").length
+          project.graphs.some((g) => g.graph_role === "ci" || g.graph_role === "source")
+            ? 1
+            : project.graphs.some((g) => g.graph_role === "test")
+              ? 1
+              : 0
         }
       />
       <ProjectSubnav />
@@ -108,7 +105,7 @@ export default function ProjectDetailPage() {
       <ProjectSection
         id="repositories"
         title="Repositories"
-        description="Test, CI, and CD are your repository slots. Put application code in Test; CI and CD are optional."
+        description="Three slots: Application (CI role), Test, and CD. Put your main codebase in Application."
       >
         {legacySource.length > 0 && (
           <Card className="p-4 border-amber-500/30 bg-amber-500/5">
@@ -123,7 +120,7 @@ export default function ProjectDetailPage() {
                   {g.name}
                 </Link>
               ))}
-              <span className="text-muted-foreground"> — still used for analysis until you re-ingest under Test.</span>
+              <span className="text-muted-foreground"> — still used for analysis until you re-ingest under Application.</span>
             </p>
           </Card>
         )}
@@ -151,9 +148,9 @@ export default function ProjectDetailPage() {
           </Card>
         )}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {SLOT_ROLES.map(({ role, label, hint }) => {
+          {PROJECT_SLOTS.map(({ role, label, hint }) => {
             const assigned = graphsByRole[role]?.[0];
-            const required = role === "test";
+            const required = role === "ci";
             return (
               <Card key={role}>
                 <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">

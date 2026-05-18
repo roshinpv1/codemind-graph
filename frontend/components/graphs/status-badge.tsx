@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import type { GraphStatus } from "@/lib/types";
+import { roleLabel } from "@/lib/role-labels";
 import { cn } from "@/lib/utils";
 
 const styles: Record<GraphStatus, string> = {
@@ -25,8 +26,8 @@ export function RoleBadge({ role }: { role: string }) {
     cd: "bg-pink-500/20 text-pink-300",
   };
   return (
-    <Badge variant="outline" className={cn("capitalize text-xs", colors[role] ?? "")}>
-      {role}
+    <Badge variant="outline" className={cn("text-xs", colors[role] ?? "")}>
+      {roleLabel(role)}
     </Badge>
   );
 }

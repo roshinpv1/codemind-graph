@@ -54,7 +54,7 @@ export default function ProjectsPage() {
     <>
       <PageHeader
         title="Projects"
-        description="Each project uses Test, CI, and CD repository slots. Application code goes in Test."
+        description="Each project uses Application, Test, and CD slots (stored as CI, test, and CD roles)."
         actions={
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -93,7 +93,7 @@ export default function ProjectsPage() {
         </div>
       ) : !projects?.length ? (
         <Card className="p-12 text-center text-muted-foreground">
-          <p>Create a project, then add your application repo in the Test slot (CI and CD optional).</p>
+          <p>Create a project, then add your application repo in the Application slot (Test and CD optional).</p>
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

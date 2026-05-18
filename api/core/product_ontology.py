@@ -6,10 +6,10 @@ from typing import Any
 from api.core.pkb_storage import load_pkb
 
 ROLE_LABELS: dict[str, str] = {
-    "source": "Application code",
-    "test": "Application & tests",
-    "ci": "CI pipeline",
-    "cd": "Deployment",
+    "source": "Application",
+    "ci": "Application",
+    "test": "Test",
+    "cd": "CD",
 }
 
 FINDING_CATEGORY_LABELS: dict[str, str] = {

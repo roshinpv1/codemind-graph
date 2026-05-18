@@ -7,11 +7,15 @@ from api.core import storage
 from api.routers.coverage import _COVERAGE_RELS, _get_edge_rel
 
 
-def loadable_graphs(graphs: list) -> list:
-    return [
-        g for g in graphs
-        if g["status"] == "ready" and storage.graph_exists(g["id"])
-    ]
+def loadable_graphs(graphs: list) -> list[dict]:
+    from api.core.project_roles import graph_dict
+
+    out: list[dict] = []
+    for g in graphs:
+        d = graph_dict(g)
+        if d.get("status") == "ready" and storage.graph_exists(d["id"]):
+            out.append(d)
+    return out
 
 
 def cross_graph_match_entry_points(

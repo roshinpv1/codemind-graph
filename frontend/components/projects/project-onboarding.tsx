@@ -43,7 +43,7 @@ export function ProjectOnboarding({ projectId, repositoryCount }: ProjectOnboard
       key: "repos",
       label: "Add repositories",
       done: hasRepos,
-      hint: hasRepos ? "Application repo in Test slot" : "Add your application codebase in the Test slot",
+      hint: hasRepos ? "Application repo indexed" : "Add your application codebase in the Application slot",
     },
     {
       key: "understanding",

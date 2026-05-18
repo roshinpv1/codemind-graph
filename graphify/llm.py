@@ -44,6 +44,17 @@ def _get_tokenizer():
 # Cached at import time. None if tiktoken is unavailable; consumers must handle.
 _TOKENIZER = _get_tokenizer()
 
+
+def _count_tokens(text: str) -> int:
+    """Token count for arbitrary file/corpus text (may contain literal <|endoftext|>, etc.)."""
+    if _TOKENIZER is None:
+        return max(1, len(text) // _CHARS_PER_TOKEN)
+    try:
+        # Treat special-token strings as plain text — common in ML repos and tokenizer docs.
+        return len(_TOKENIZER.encode(text, disallowed_special=()))
+    except Exception:
+        return max(1, len(text) // _CHARS_PER_TOKEN)
+
 BACKENDS: dict[str, dict] = {
     "claude": {
         "base_url": "https://api.anthropic.com",
@@ -595,7 +606,7 @@ def _estimate_file_tokens(path: Path) -> int:
         content = path.read_text(encoding="utf-8", errors="replace")[:_FILE_CHAR_CAP]
     except OSError:
         return 0
-    return len(_TOKENIZER.encode(content)) + (_PER_FILE_OVERHEAD_CHARS // _CHARS_PER_TOKEN)
+    return _count_tokens(content) + (_PER_FILE_OVERHEAD_CHARS // _CHARS_PER_TOKEN)
 
 
 def _pack_chunks_by_tokens(
