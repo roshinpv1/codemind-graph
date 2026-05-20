@@ -300,6 +300,9 @@ def synthesize_project(
         pkb["meta"]["previous_synthesis_at"] = prev["meta"]["synthesized_at"]
         pkb["meta"]["previous_metrics"] = prev.get("metrics", {})
 
+    from api.core.project_decisions import extract_decisions_for_loadable
+    pkb["decisions"] = extract_decisions_for_loadable(loadable_source, limit=50)
+
     from api.core.product_ontology import finalize_ontology
     repo_meta = [
         {

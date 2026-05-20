@@ -8,6 +8,8 @@ INTENTS = (
     "coverage",
     "security",
     "architecture",
+    "blast_radius",
+    "why",
     "how_it_works",
     "where_is",
     "onboarding",
@@ -22,8 +24,14 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("security", re.compile(
         r"\b(security|auth|secret|pii|gdpr|vulnerab|attack|trust|encrypt)\b", re.I
     )),
+    ("blast_radius", re.compile(
+        r"\b(blast\s*radius|hotspot|impact\s+of|if\s+i\s+change|affect\s+many|high.degree)\b", re.I
+    )),
+    ("why", re.compile(
+        r"\b(why\s+(did|do|was|is)|rationale|reason\s+for|tradeoff|trade.off|decision)\b", re.I
+    )),
     ("architecture", re.compile(
-        r"\b(architect|module|coupling|layer|circular|depend|god\s*node|community)\b", re.I
+        r"\b(architect|module|coupling|layer|circular|depend|god\s*node|community|hub)\b", re.I
     )),
     ("onboarding", re.compile(
         r"\b(onboard|new\s+(dev|engineer|hire)|start\s+here|learn|beginner|intro)\b", re.I
@@ -45,9 +53,24 @@ def classify_intent(question: str) -> dict[str, Any]:
     for intent, pat in _PATTERNS:
         if pat.search(question):
             scores[intent] += 2
-    best = max(scores, key=scores.get)
-    if scores[best] == 0:
+    # Prefer specific intents when multiple patterns match equally.
+    priority = (
+        "blast_radius",
+        "why",
+        "coverage",
+        "security",
+        "risk",
+        "architecture",
+        "how_it_works",
+        "where_is",
+        "onboarding",
+        "general",
+    )
+    top = max(scores.values())
+    if top == 0:
         best = "general"
+    else:
+        best = next(i for i in priority if scores.get(i) == top)
     return {
         "intent": best,
         "scores": scores,
@@ -59,11 +82,13 @@ def _sections_for_intent(intent: str) -> list[str]:
     mapping = {
         "coverage": ["capabilities", "metrics", "risks"],
         "security": ["risks", "subsystems", "dna"],
-        "architecture": ["subsystems", "risks", "module_briefs"],
+        "architecture": ["subsystems", "risks", "module_briefs", "hubs"],
+        "blast_radius": ["hubs", "risks", "module_briefs", "metrics"],
+        "why": ["decisions", "module_briefs", "risks"],
         "how_it_works": ["flows", "module_briefs", "capabilities"],
         "where_is": ["capabilities", "subsystems"],
         "onboarding": ["dna", "flows", "subsystems"],
-        "risk": ["risks", "metrics", "dna"],
+        "risk": ["risks", "metrics", "dna", "hubs"],
         "general": ["dna", "risks", "capabilities", "subsystems"],
     }
     return mapping.get(intent, mapping["general"])

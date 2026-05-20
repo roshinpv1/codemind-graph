@@ -16,11 +16,14 @@ export function AnswerCard({ data, projectId }: AnswerCardProps) {
   const [showProof, setShowProof] = useState(false);
   const card = data.answer_card as {
     summary?: string;
+    confidence?: string;
     confidence_label?: string;
     related?: { name: string; type?: string; test_status?: string; file?: string }[];
     gaps?: string[];
+    best_guesses?: string[];
     suggested_next_steps?: string[];
   } | undefined;
+  const isLow = card?.confidence === "low";
 
   const summary = card?.summary ?? data.answer;
   const proof = data.technical_proof as {
@@ -37,6 +40,25 @@ export function AnswerCard({ data, projectId }: AnswerCardProps) {
         </p>
         <RichText content={summary} mode="auto" variant="inline" className="max-w-none" />
       </div>
+
+      {isLow && (
+        <p className="text-sm text-amber-400/90 border border-amber-500/30 rounded-md p-2">
+          Limited evidence for this answer — verify in your codebase before acting on it.
+        </p>
+      )}
+
+      {card?.best_guesses && card.best_guesses.length > 0 && (
+        <section>
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            Closest known findings
+          </h4>
+          <ul className="text-sm list-disc pl-4 text-muted-foreground">
+            {card.best_guesses.map((g) => (
+              <li key={g}>{g}</li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {card?.related && card.related.length > 0 && (
         <section>

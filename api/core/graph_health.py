@@ -1,7 +1,16 @@
 """Fast graph health metrics — safe for large code graphs (no unbounded simple_cycles)."""
 from __future__ import annotations
 
+import re
+
 import networkx as nx
+
+# Conservative: likely framework entry / plugin surfaces
+_SAFE_NAME = re.compile(
+    r"(Plugin|Handler|Adapter|Middleware|Controller|Route|__init__|main|index|app)\b",
+    re.I,
+)
+_DYNAMIC_LOAD = re.compile(r"importlib|__import__|getattr\s*\(", re.I)
 
 # Above this size, use SCC-based cycle proxy instead of enumerating simple cycles.
 _SIMPLE_CYCLE_NODE_LIMIT = 1_500
@@ -71,6 +80,46 @@ def _is_trackable_code_node(data: dict) -> bool:
 
 def dead_code_node_ids(G: nx.Graph, *, limit: int = 5_000) -> list[str]:
     return [r["id"] for r in dead_code_candidates(G, limit=limit)]
+
+
+def _dead_code_confidence(data: dict, out_degree: int) -> float:
+    label = (data.get("label") or "")
+    sf = (data.get("source_file") or "")
+    score = 0.55
+    if out_degree == 0:
+        score += 0.25
+    elif out_degree <= 1:
+        score += 0.1
+    if _SAFE_NAME.search(label) or _SAFE_NAME.search(sf):
+        score -= 0.35
+    if _DYNAMIC_LOAD.search(label):
+        score -= 0.2
+    if len(label) <= 3 or label in (".push()", ".call()", ".slice()"):
+        score -= 0.4
+    return max(0.1, min(1.0, round(score, 2)))
+
+
+def classify_dead_code(G: nx.Graph, *, limit: int = 500) -> list[dict]:
+    """Dead-code candidates with confidence tier for UI and agents."""
+    raw = dead_code_candidates(G, limit=limit)
+    out: list[dict] = []
+    for item in raw:
+        nid = item["id"]
+        data = G.nodes[nid] if nid in G else {}
+        conf = _dead_code_confidence(data, int(item.get("out_degree") or 0))
+        tier = "safe_to_remove" if conf >= 0.7 else "review_first" if conf >= 0.45 else "uncertain"
+        out.append({
+            **item,
+            "confidence": conf,
+            "tier": tier,
+            "tier_label": {
+                "safe_to_remove": "Likely safe to remove",
+                "review_first": "Review before removing",
+                "uncertain": "Uncertain",
+            }.get(tier, tier),
+        })
+    out.sort(key=lambda x: (-x["confidence"], x.get("source_file") or "", x.get("label") or ""))
+    return out
 
 
 def sample_cycles_for_display(

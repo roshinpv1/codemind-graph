@@ -1,6 +1,7 @@
 """User-facing product ontology — maps PKB/graph internals to capabilities, areas, findings."""
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from api.core.pkb_storage import load_pkb
@@ -219,6 +220,44 @@ def get_briefing_user(project_id: str) -> dict[str, Any]:
     }
 
 
+def _mentions_phrase(text: str, phrase: str) -> bool:
+    if len(phrase) < 4:
+        return False
+    return bool(re.search(rf"\b{re.escape(phrase)}\b", text, re.I))
+
+
+def compute_retrieval_quality(
+    pkb: dict | None,
+    evidence: list[dict],
+    intent: str,
+    has_context: bool,
+) -> dict[str, Any]:
+    score = 0.0
+    if pkb:
+        score += 0.35
+    if len(evidence) >= 5:
+        score += 0.35
+    elif len(evidence) >= 2:
+        score += 0.2
+    if intent in ("blast_radius", "architecture", "risk") and any(
+        f.get("category_key") == "hub" for f in (pkb or {}).get("findings", [])
+    ):
+        score += 0.15
+    if not has_context:
+        score = 0.1
+    confidence = "high" if score >= 0.65 else "medium" if score >= 0.35 else "low"
+    best_guesses: list[str] = []
+    if confidence == "low" and pkb:
+        best_guesses = [f["title"] for f in pkb.get("findings", [])[:3]]
+    return {
+        "score": round(score, 2),
+        "confidence": confidence,
+        "evidence_count": len(evidence),
+        "pkb_present": bool(pkb),
+        "best_guesses": best_guesses,
+    }
+
+
 def build_answer_card(
     answer: str,
     persona: str,
@@ -226,42 +265,71 @@ def build_answer_card(
     evidence: list[dict],
     *,
     confidence: str = "medium",
+    retrieval_quality: dict | None = None,
 ) -> dict[str, Any]:
     """Structure LLM answer for UI — no graph jargon in primary fields."""
     related: list[dict] = []
     gaps: list[str] = []
+    answer_l = answer.lower()
     if pkb:
-        for cap in pkb.get("capabilities_ui", [])[:5]:
-            if cap["name"].lower() in answer.lower():
-                related.append({"name": cap["name"], "type": "capability", "test_status": cap["test_status"]})
-        for f in pkb.get("findings", [])[:8]:
+        for cap in pkb.get("capabilities_ui", [])[:20]:
+            name = cap.get("name", "")
+            if name and len(name) >= 4 and _mentions_phrase(answer, name):
+                related.append({
+                    "name": name,
+                    "type": "capability",
+                    "test_status": cap.get("test_status"),
+                })
+        for f in pkb.get("findings", [])[:12]:
             if not f.get("title"):
                 continue
             if f.get("category_key") == "coverage_gap":
                 gaps.append(f["title"])
-    for e in evidence[:6]:
-        lbl = e.get("label") or e.get("node_id")
-        if lbl and not any(r["name"] == lbl for r in related):
-            related.append({
-                "name": lbl,
-                "type": "component",
-                "file": e.get("source_file"),
-            })
+            elif _mentions_phrase(answer, f["title"][:60]):
+                related.append({
+                    "name": f["title"],
+                    "type": "finding",
+                    "severity": f.get("severity_label"),
+                })
+    for e in evidence[:8]:
+        lbl = (e.get("label") or "").strip()
+        if not lbl or len(lbl) < 3:
+            continue
+        if lbl.startswith(".") and lbl.endswith("()"):
+            continue
+        if any(r["name"] == lbl for r in related):
+            continue
+        related.append({
+            "name": lbl,
+            "type": "component",
+            "file": e.get("source_file"),
+        })
+
+    rq = retrieval_quality or {}
+    conf = rq.get("confidence", confidence)
+    labels = {
+        "high": "High confidence",
+        "medium": "Medium confidence",
+        "low": "Low confidence — verify in code",
+    }
 
     return {
         "summary": answer,
-        "confidence": confidence,
-        "confidence_label": {"high": "High confidence", "medium": "Medium confidence", "low": "Low confidence"}.get(
-            confidence, "Medium confidence"
-        ),
+        "confidence": conf,
+        "confidence_label": labels.get(conf, labels["medium"]),
         "related": related[:8],
         "gaps": gaps[:5],
-        "suggested_next_steps": _next_steps(persona, gaps),
+        "best_guesses": rq.get("best_guesses", []),
+        "suggested_next_steps": _next_steps(persona, gaps, conf),
     }
 
 
-def _next_steps(persona: str, gaps: list[str]) -> list[str]:
+def _next_steps(persona: str, gaps: list[str], confidence: str = "medium") -> list[str]:
+
+
     steps: list[str] = []
+    if confidence == "low":
+        steps.append("Treat this answer as directional — open cited files and run targeted tests.")
     if persona == "qa" and gaps:
         steps.append("Prioritize test design for the untested capabilities listed above.")
     elif persona == "executive":

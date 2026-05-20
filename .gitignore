@@ -71,3 +71,7 @@ logs/
 tmp/
 temp/
 .cache/
+/codegraph-extension/node_modules
+/codegraph-extension/node_modules
+/codegraph-extension/node_modules
+/codegraph-extension/node_modules

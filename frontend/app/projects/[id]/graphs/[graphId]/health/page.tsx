@@ -155,14 +155,37 @@ export default function HealthPage() {
           ) : (deadCode ?? []).length === 0 ? (
             <p className="text-muted-foreground">None detected with current heuristics.</p>
           ) : (
-            (deadCode ?? []).slice(0, 25).map((n) => (
-              <div key={String(n.id)} className="flex justify-between border-b pb-2 font-mono text-xs gap-2">
-                <span className="truncate">{String(n.label)}</span>
-                <span className="text-muted-foreground shrink-0 truncate max-w-[50%]">
-                  {String(n.source_file)}
-                </span>
-              </div>
-            ))
+            (deadCode ?? []).slice(0, 25).map((n) => {
+              const row = n as Record<string, unknown>;
+              const tier = String(row.tier ?? "");
+              const tierLabel = String(row.tier_label ?? "");
+              const conf = row.confidence != null ? Number(row.confidence) : null;
+              const tierClass =
+                tier === "safe_to_remove"
+                  ? "text-emerald-500/90"
+                  : tier === "review_first"
+                    ? "text-yellow-500/90"
+                    : "text-muted-foreground";
+              return (
+                <div
+                  key={String(row.id)}
+                  className="flex flex-col sm:flex-row sm:justify-between border-b pb-2 font-mono text-xs gap-1"
+                >
+                  <span className="truncate">{String(row.label)}</span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    {tierLabel && (
+                      <span className={`font-sans text-[10px] uppercase ${tierClass}`}>
+                        {tierLabel}
+                        {conf != null ? ` (${Math.round(conf * 100)}%)` : ""}
+                      </span>
+                    )}
+                    <span className="text-muted-foreground truncate max-w-[12rem]">
+                      {String(row.source_file)}
+                    </span>
+                  </span>
+                </div>
+              );
+            })
           )}
         </CardContent>
       </Card>

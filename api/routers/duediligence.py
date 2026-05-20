@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from api.core import engine, database
 from api.core.graph_health import (
     count_circular_dependencies,
+    classify_dead_code,
     dead_code_candidates,
     dead_code_node_ids,
 )
@@ -145,11 +146,14 @@ def tech_debt(graph_id: str):
     return sorted(result, key=lambda x: x["debt_score"], reverse=True)
 
 
-@router.get("/dead-code", response_model=list[dict], summary="Unreachable / dead code nodes")
-def dead_code(graph_id: str, limit: int = 500):
+@router.get("/dead-code", response_model=list[dict], summary="Unreachable / dead code nodes with confidence tiers")
+def dead_code(graph_id: str, limit: int = 500, classified: bool = True):
     _require_ready(graph_id)
     G = engine.load_graph(graph_id)
-    return dead_code_candidates(G, limit=min(limit, 1000))
+    lim = min(limit, 1000)
+    if classified:
+        return classify_dead_code(G, limit=lim)
+    return dead_code_candidates(G, limit=lim)
 
 
 @router.get("/complexity", response_model=list[dict], summary="Per-community complexity metrics")

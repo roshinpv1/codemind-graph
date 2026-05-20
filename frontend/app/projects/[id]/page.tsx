@@ -23,9 +23,17 @@ import { repositoryPath } from "@/lib/routes";
 import { ProjectDna } from "@/components/projects/project-dna";
 import { ProductMap } from "@/components/projects/product-map";
 import { ProjectBriefing } from "@/components/projects/project-briefing";
+<<<<<<< Updated upstream
 import { ProjectAskPanel } from "@/components/projects/project-ask-panel";
 
 const ROLES: GraphRole[] = ["source", "test", "ci", "cd"];
+=======
+import { ProjectOnboarding } from "@/components/projects/project-onboarding";
+import { ProjectSubnav } from "@/components/projects/project-subnav";
+import { ProjectSection } from "@/components/projects/project-section";
+import { ProjectAskTeaser } from "@/components/projects/project-ask-teaser";
+import { ProjectDecisions } from "@/components/projects/project-decisions";
+>>>>>>> Stashed changes
 
 export default function ProjectDetailPage() {
   const id = useParams().id as string;
@@ -80,7 +88,21 @@ export default function ProjectDetailPage() {
         }
       />
 
+<<<<<<< Updated upstream
       <ProjectDna projectId={id} projectName={project.name} />
+=======
+      <ProjectOnboarding
+        projectId={id}
+        repositoryCount={
+          project.graphs.some((g) => g.graph_role === "ci" || g.graph_role === "source")
+            ? 1
+            : project.graphs.some((g) => g.graph_role === "test")
+              ? 1
+              : 0
+        }
+      />
+      <ProjectSubnav projectId={id} />
+>>>>>>> Stashed changes
 
       <ProductMap projectId={id} />
 
@@ -174,7 +196,40 @@ export default function ProjectDetailPage() {
             );
           })}
         </div>
+<<<<<<< Updated upstream
       </section>
+=======
+      </ProjectSection>
+
+      <ProjectSection
+        id="understanding"
+        title="Understanding"
+        description="Structural snapshot from your repositories — briefing, product map, and findings."
+      >
+        <ProjectBriefing projectId={id} />
+        <ProductMap projectId={id} />
+      </ProjectSection>
+
+      <ProjectSection
+        id="decisions"
+        title="Decisions"
+        description="WHY / DECISION / TRADEOFF markers extracted from application code."
+      >
+        <ProjectDecisions projectId={id} />
+      </ProjectSection>
+
+      <ProjectSection
+        id="dna"
+        title="Project DNA"
+        description="Optional AI-written narrative of the whole product (separate from the structural map)."
+      >
+        <ProjectDna projectId={id} projectName={project.name} />
+      </ProjectSection>
+
+      <ProjectSection id="ask" title="Questions">
+        <ProjectAskTeaser projectId={id} />
+      </ProjectSection>
+>>>>>>> Stashed changes
 
       {coverage && (
         <section className="space-y-4">

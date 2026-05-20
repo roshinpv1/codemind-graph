@@ -355,6 +355,15 @@ export const projectsApi = {
   delta: (id: string) => request<Record<string, unknown>>(`/projects/${id}/delta`),
   memory: (id: string, limit = 20) =>
     request<{ items: Record<string, unknown>[] }>(`/projects/${id}/memory?limit=${limit}`),
+  decisions: (id: string, limit = 40) =>
+    request<{ project_id: string; decisions: Record<string, unknown>[]; count: number }>(
+      `/projects/${id}/decisions?limit=${limit}`,
+    ),
+  blastRadius: (id: string, changedFiles: string[], depth = 2) =>
+    request<Record<string, unknown>>(`/projects/${id}/blast-radius`, {
+      method: "POST",
+      body: JSON.stringify({ changed_files: changedFiles, depth }),
+    }),
 };
 
 export { ApiError };

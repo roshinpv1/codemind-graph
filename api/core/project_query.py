@@ -11,10 +11,12 @@ from api.core import database, engine, storage
 from api.core.cross_graph import loadable_graphs
 from api.core.intent_router import classify_intent, SCENARIO_PACKS
 from api.core.pkb_storage import load_pkb, append_memory
+from api.core.graph_context import blast_radius_for_question
 from api.core.product_ontology import (
     enrich_pkb,
     get_briefing_user,
     build_answer_card,
+    compute_retrieval_quality,
     technical_proof,
     repository_role_label,
 )
@@ -93,6 +95,30 @@ def _pkb_context_sections(pkb: dict[str, Any], sections: list[str], char_budget:
     if "flows" in sections and pkb.get("journeys"):
         lines = [f"- {j['name']}: {j.get('summary', '')} [{j.get('test_status', '')}]" for j in pkb["journeys"][:8]]
         parts.append("## User journeys\n" + "\n".join(lines))
+    if "module_briefs" in sections and pkb.get("module_briefs"):
+        brief_lines: list[str] = []
+        for key, text_b in list(pkb["module_briefs"].items())[:10]:
+            area = key.split(":")[-1] if ":" in key else key
+            brief_lines.append(f"- **{area}**: {(text_b or '')[:300]}")
+        if brief_lines:
+            parts.append("## Module briefs\n" + "\n".join(brief_lines))
+    if "hubs" in sections:
+        hub_findings = [
+            f for f in pkb.get("findings", [])
+            if f.get("category_key") == "hub"
+        ][:10]
+        if hub_findings:
+            lines = [
+                f"- {f['title']}: {f.get('why_it_matters', '')}"
+                for f in hub_findings
+            ]
+            parts.append("## Architectural hubs (findings)\n" + "\n".join(lines))
+    if "decisions" in sections and pkb.get("decisions"):
+        lines = [
+            f"- [{d.get('kind', 'DECISION')}] {d.get('title', '')} ({d.get('source_file', '')})"
+            for d in pkb["decisions"][:12]
+        ]
+        parts.append("## Documented decisions\n" + "\n".join(lines))
     text = "\n\n".join(parts)
     if len(text) > char_budget:
         return text[:char_budget] + "\n...(truncated)"
@@ -283,10 +309,28 @@ def project_ask(
             context_parts.append(pkb_text)
 
     depth = min(max(depth, 1), 6)
+<<<<<<< Updated upstream
     per_graph = max(400, 1200 // max(len(loadable), 1))
     for gmeta in loadable[:4]:
+=======
+    per_graph = max(400, 1200 // max(len(structural), 1))
+    use_hub_blast = routing["intent"] in ("blast_radius", "architecture", "risk")
+    for gmeta in structural[:4]:
+>>>>>>> Stashed changes
         G = engine.load_graph(gmeta["id"])
         role = gmeta["graph_role"] or "source"
+        if use_hub_blast:
+            hub_block, hub_ev = blast_radius_for_question(G, question, depth=depth)
+            if hub_block:
+                context_parts.append(
+                    f"### {gmeta['name']} — {repository_role_label(role)}\n{hub_block}"
+                )
+                for e in hub_ev:
+                    e = dict(e)
+                    e["graph_id"] = gmeta["id"]
+                    e["graph_name"] = gmeta["name"]
+                    e["graph_role"] = role
+                    all_evidence.append(e)
         block, ev = _graph_context_block(
             G, question, mode=mode, depth=depth,
             header=f"{gmeta['name']} — {repository_role_label(role)}",
@@ -329,14 +373,23 @@ def project_ask(
         f"Intent detected: {routing['intent']}\n\n"
         "Use ONLY the product intelligence below. "
         "Speak in terms of capabilities, product areas, findings, and user journeys — "
-        "never say graph, node, community, entry point, PKB, or BFS.\n\n"
+        "never say graph, node, community, entry point, PKB, or BFS. "
+        "If the context does not support a specific call chain or file list, say what is unknown "
+        "rather than inventing paths.\n\n"
         f"QUESTION: {question}\n\n"
         f"CONTEXT:\n{context}\n\n"
         "ANSWER:"
     )
     answer = engine.llm_ask(prompt, backend=backend, max_tokens=1000)
-    confidence = "high" if pkb and len(all_evidence) >= 3 else "medium"
-    answer_card = build_answer_card(answer, persona, pkb, all_evidence, confidence=confidence)
+    retrieval = compute_retrieval_quality(
+        pkb, all_evidence, routing["intent"], bool(context_parts)
+    )
+    confidence = retrieval["confidence"]
+    answer_card = build_answer_card(
+        answer, persona, pkb, all_evidence,
+        confidence=confidence,
+        retrieval_quality=retrieval,
+    )
     structured = _structure_for_persona(persona, answer, pkb or {}, all_evidence)
     proof = technical_proof(all_evidence, sources)
 
@@ -353,12 +406,16 @@ def project_ask(
         "intent": routing["intent"],
         "answer": answer,
         "answer_card": answer_card,
+        "retrieval_quality": retrieval,
         "technical_proof": proof,
         "structured": structured,
         "understanding_ready": bool(pkb),
+        "context_nodes": len(all_evidence),
+        "sources": sources,
         "backend": backend,
         "mode": mode,
         "depth": depth,
+        "pkb_available": bool(pkb),
     }
 
 

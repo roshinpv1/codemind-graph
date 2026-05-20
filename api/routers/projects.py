@@ -28,6 +28,8 @@ from api.core import pkb_storage
 from api.core.intent_router import SCENARIO_PACKS
 from api.core.project_query import get_briefing, list_scenarios
 from api.core.product_ontology import get_product_map, get_findings as get_findings_ontology
+from api.core.project_decisions import get_project_decisions
+from api.core.project_risk import compute_blast_radius
 from api.config import LLM_BACKEND
 from api.models.common import (
     AssignGraphRequest, GraphMeta, GraphRole,
@@ -512,6 +514,27 @@ def project_ask_route(
         depth=min(depth, 6),
         roles=role_list,
         backend=backend or LLM_BACKEND,
+    )
+
+
+class BlastRadiusRequest(BaseModel):
+    changed_files: list[str] = Field(..., min_length=1)
+    depth: int = Field(2, ge=1, le=4)
+
+
+@router.get("/{project_id}/decisions", response_model=dict, summary="Architecture decisions (# WHY / # DECISION markers)")
+def project_decisions_route(project_id: str, limit: int = 40):
+    _require_project(project_id)
+    return get_project_decisions(project_id, limit=limit)
+
+
+@router.post("/{project_id}/blast-radius", response_model=dict, summary="PR blast radius from changed file paths")
+def project_blast_radius_route(project_id: str, body: BlastRadiusRequest):
+    _require_project(project_id)
+    return compute_blast_radius(
+        project_id,
+        body.changed_files,
+        depth=body.depth,
     )
 
 
