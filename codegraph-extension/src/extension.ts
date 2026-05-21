@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { checkPythonVersion, runBundledPython, ensureDependencies, getPythonPath } from './utils';
+import { checkPythonVersion, runBundledPython } from './utils';
 import { GraphQueryEngine } from './graphQuery';
-import * as fs from 'fs';
+
 
 let queryEngine: GraphQueryEngine | null = null;
 let watcher: vscode.FileSystemWatcher | null = null;
@@ -42,8 +42,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Resolve global storage dependencies path (cross-platform self-contained installation)
     const storageDepsPath = path.join(context.globalStorageUri.fsPath, 'dependencies');
+    
+    // Dynamic dependency installation is disabled to prevent enterprise EDR from uninstalling the extension.
+    // Dependencies must now be pre-bundled or installed manually.
+    /*
     const treeSitterMarker = path.join(storageDepsPath, 'tree_sitter');
-
     if (!fs.existsSync(treeSitterMarker)) {
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
@@ -62,6 +65,7 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         });
     }
+    */
 
     // Load graph query engine
     loadQueryEngine(workspaceRoot);

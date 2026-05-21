@@ -113,7 +113,7 @@ function runBundledPython(extensionPath, args, cwd, storageDepsPath) {
         });
     });
 }
-function ensureDependencies(python, targetPath) {
+function ensureDependencies(python, targetPath, outputChannel) {
     return new Promise((resolve) => {
         // Run pip install inside targetPath
         const args = [
@@ -135,13 +135,35 @@ function ensureDependencies(python, targetPath) {
             'tree-sitter-c',
             'tree-sitter-cpp'
         ];
-        console.log(`Installing dependencies using: ${python} ${args.join(' ')}`);
-        (0, child_process_1.execFile)(python, args, (err) => {
-            if (err) {
-                console.error("Dependency installation failed:", err);
+        const cmdStr = `${python} ${args.join(' ')}`;
+        console.log(`Installing dependencies using: ${cmdStr}`);
+        if (outputChannel) {
+            outputChannel.appendLine(`[INFO] Starting CodeGraph dependencies installation...`);
+            outputChannel.appendLine(`[INFO] Command: ${cmdStr}`);
+        }
+        const child = (0, child_process_1.execFile)(python, args);
+        if (child.stdout && outputChannel) {
+            child.stdout.on('data', (data) => {
+                outputChannel.append(data.toString());
+            });
+        }
+        if (child.stderr && outputChannel) {
+            child.stderr.on('data', (data) => {
+                outputChannel.append(data.toString());
+            });
+        }
+        child.on('close', (code) => {
+            if (code !== 0) {
+                console.error(`Dependency installation failed with exit code: ${code}`);
+                if (outputChannel) {
+                    outputChannel.appendLine(`\n[ERROR] Dependency installation failed with exit code: ${code}`);
+                }
                 resolve(false);
             }
             else {
+                if (outputChannel) {
+                    outputChannel.appendLine(`\n[SUCCESS] Dependencies installed successfully.`);
+                }
                 resolve(true);
             }
         });

@@ -37,14 +37,14 @@ function testPython(executable: string): Promise<boolean> {
 
 export async function checkPythonVersion(): Promise<boolean> {
     const configured = getPythonPath();
-    
+
     // 1. Try configured python command
     let ok = await testPython(configured);
     if (ok) {
         activePythonPath = configured;
         return true;
     }
-    
+
     // 2. Try common fallbacks (e.g. on Windows default is often 'python')
     const alternates = configured === 'python3' ? ['python', 'python.exe'] : ['python3'];
     for (const alt of alternates) {
@@ -55,7 +55,7 @@ export async function checkPythonVersion(): Promise<boolean> {
             return true;
         }
     }
-    
+
     return false;
 }
 
@@ -75,9 +75,9 @@ export function runBundledPython(
     const python = getPythonPath();
     const pythonDir = path.join(extensionPath, 'python');
     const pathSeparator = process.platform === 'win32' ? ';' : ':';
-    
+
     const pythonPathEnv = [pythonDir, storageDepsPath].filter(Boolean).join(pathSeparator);
-    
+
     // We add the bundled python directory to PYTHONPATH so python can resolve "graph"
     const env = {
         ...process.env,
@@ -88,7 +88,7 @@ export function runBundledPython(
     return new Promise((resolve) => {
         const fullArgs = ['-m', 'graph', ...args];
         console.log(`Executing: ${python} ${fullArgs.join(' ')}`);
-        
+
         execFile(python, fullArgs, { cwd, env }, (err, stdout, stderr) => {
             resolve({
                 stdout: stdout || '',
@@ -125,7 +125,7 @@ export function ensureDependencies(
             'tree-sitter-c',
             'tree-sitter-cpp'
         ];
-        
+
         const cmdStr = `${python} ${args.join(' ')}`;
         console.log(`Installing dependencies using: ${cmdStr}`);
         if (outputChannel) {

@@ -39,7 +39,6 @@ const vscode = __importStar(require("vscode"));
 const path = __importStar(require("path"));
 const utils_1 = require("./utils");
 const graphQuery_1 = require("./graphQuery");
-const fs = __importStar(require("fs"));
 let queryEngine = null;
 let watcher = null;
 function getGraphPath(workspaceRoot) {
@@ -64,8 +63,14 @@ async function activate(context) {
     if (!pythonOk) {
         vscode.window.showWarningMessage("CodeGraph requires Python 3.10+ to build/update graphs. Please verify your system Python installation or update the 'codegraph.pythonPath' setting.");
     }
+    // Create detailed installation log channel
+    const installLogChannel = vscode.window.createOutputChannel("CodeGraph Installation");
+    context.subscriptions.push(installLogChannel);
     // Resolve global storage dependencies path (cross-platform self-contained installation)
     const storageDepsPath = path.join(context.globalStorageUri.fsPath, 'dependencies');
+    // Dynamic dependency installation is disabled to prevent enterprise EDR from uninstalling the extension.
+    // Dependencies must now be pre-bundled or installed manually.
+    /*
     const treeSitterMarker = path.join(storageDepsPath, 'tree_sitter');
     if (!fs.existsSync(treeSitterMarker)) {
         await vscode.window.withProgress({
@@ -76,15 +81,16 @@ async function activate(context) {
             progress.report({ message: "Installing platform-native Python dependencies..." });
             // Ensure globalStorage directory exists
             fs.mkdirSync(storageDepsPath, { recursive: true });
-            const success = await (0, utils_1.ensureDependencies)((0, utils_1.getPythonPath)(), storageDepsPath);
+            const success = await ensureDependencies(getPythonPath(), storageDepsPath, installLogChannel);
             if (success) {
                 vscode.window.showInformationMessage("CodeGraph ready!");
-            }
-            else {
-                vscode.window.showErrorMessage("Failed to setup CodeGraph python dependencies. Check console logs.");
+            } else {
+                vscode.window.showErrorMessage("Failed to setup CodeGraph python dependencies. Check the 'CodeGraph Installation' output channel.");
+                installLogChannel.show(true); // Automatically focus the output pane for user
             }
         });
     }
+    */
     // Load graph query engine
     loadQueryEngine(workspaceRoot);
     // Watch for graph.json changes to hot-reload the graph
