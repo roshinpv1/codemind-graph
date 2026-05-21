@@ -1,0 +1,11 @@
+# Source files and compilation configs
+src/**
+tsconfig.json
+package-lock.json
+
+# Local graph outputs and tests
+graph-out/**
+.vscode-test/**
+
+# Exclude pre-installed mac-specific dependencies (installed dynamically on client first activation)
+python/dependencies/**
