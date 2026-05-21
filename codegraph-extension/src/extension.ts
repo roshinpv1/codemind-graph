@@ -36,6 +36,10 @@ export async function activate(context: vscode.ExtensionContext) {
         );
     }
 
+    // Create detailed installation log channel
+    const installLogChannel = vscode.window.createOutputChannel("CodeGraph Installation");
+    context.subscriptions.push(installLogChannel);
+
     // Resolve global storage dependencies path (cross-platform self-contained installation)
     const storageDepsPath = path.join(context.globalStorageUri.fsPath, 'dependencies');
     const treeSitterMarker = path.join(storageDepsPath, 'tree_sitter');
@@ -49,11 +53,12 @@ export async function activate(context: vscode.ExtensionContext) {
             progress.report({ message: "Installing platform-native Python dependencies..." });
             // Ensure globalStorage directory exists
             fs.mkdirSync(storageDepsPath, { recursive: true });
-            const success = await ensureDependencies(getPythonPath(), storageDepsPath);
+            const success = await ensureDependencies(getPythonPath(), storageDepsPath, installLogChannel);
             if (success) {
                 vscode.window.showInformationMessage("CodeGraph ready!");
             } else {
-                vscode.window.showErrorMessage("Failed to setup CodeGraph python dependencies. Check console logs.");
+                vscode.window.showErrorMessage("Failed to setup CodeGraph python dependencies. Check the 'CodeGraph Installation' output channel.");
+                installLogChannel.show(true); // Automatically focus the output pane for user
             }
         });
     }

@@ -101,7 +101,8 @@ export function runBundledPython(
 
 export function ensureDependencies(
     python: string,
-    targetPath: string
+    targetPath: string,
+    outputChannel?: vscode.OutputChannel
 ): Promise<boolean> {
     return new Promise((resolve) => {
         // Run pip install inside targetPath
@@ -125,12 +126,38 @@ export function ensureDependencies(
             'tree-sitter-cpp'
         ];
         
-        console.log(`Installing dependencies using: ${python} ${args.join(' ')}`);
-        execFile(python, args, (err) => {
-            if (err) {
-                console.error("Dependency installation failed:", err);
+        const cmdStr = `${python} ${args.join(' ')}`;
+        console.log(`Installing dependencies using: ${cmdStr}`);
+        if (outputChannel) {
+            outputChannel.appendLine(`[INFO] Starting CodeGraph dependencies installation...`);
+            outputChannel.appendLine(`[INFO] Command: ${cmdStr}`);
+        }
+
+        const child = execFile(python, args);
+
+        if (child.stdout && outputChannel) {
+            child.stdout.on('data', (data) => {
+                outputChannel.append(data.toString());
+            });
+        }
+
+        if (child.stderr && outputChannel) {
+            child.stderr.on('data', (data) => {
+                outputChannel.append(data.toString());
+            });
+        }
+
+        child.on('close', (code) => {
+            if (code !== 0) {
+                console.error(`Dependency installation failed with exit code: ${code}`);
+                if (outputChannel) {
+                    outputChannel.appendLine(`\n[ERROR] Dependency installation failed with exit code: ${code}`);
+                }
                 resolve(false);
             } else {
+                if (outputChannel) {
+                    outputChannel.appendLine(`\n[SUCCESS] Dependencies installed successfully.`);
+                }
                 resolve(true);
             }
         });
