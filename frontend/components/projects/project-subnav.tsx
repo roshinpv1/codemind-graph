@@ -10,7 +10,11 @@ const links = [
   { id: "coverage", label: "Coverage" },
 ] as const;
 
-export function ProjectSubnav() {
+interface ProjectSubnavProps {
+  projectId?: string;
+}
+
+export function ProjectSubnav({ projectId }: ProjectSubnavProps) {
   return (
     <nav
       aria-label="On this page"
@@ -28,6 +32,17 @@ export function ProjectSubnav() {
           {label}
         </a>
       ))}
+      {projectId && (
+        <a
+          href={`/projects/${projectId}/risk`}
+          className={cn(
+            "shrink-0 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors",
+            "hover:bg-accent hover:text-foreground",
+          )}
+        >
+          PR risk
+        </a>
+      )}
     </nav>
   );
 }

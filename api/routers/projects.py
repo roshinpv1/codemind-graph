@@ -541,42 +541,27 @@ def project_summary(project_id: str):
             "edge_count": g["edge_count"],
         })
 
-<<<<<<< Updated upstream
-    from api.core.project_roles import PROJECT_SLOT_ROLES, ROLE_LABELS, has_application_graph
+    from api.core.project_roles import PROJECT_SLOT_ROLES, has_application_graph, role_label
 
     has_app = has_application_graph(graphs)
     missing_slots = [r for r in PROJECT_SLOT_ROLES if r not in by_role]
-    completeness = 100 if has_app else 0
+    filled = len(PROJECT_SLOT_ROLES) - len(missing_slots)
+    completeness = round(filled / max(len(PROJECT_SLOT_ROLES), 1) * 100) if has_app else 0
 
     recommendations: list[str] = []
     if not has_app:
-        recommendations.append(
-            "Add your application repository in the Application (CI) slot."
-        )
+        recommendations.append("Add your application repository in the Source slot.")
     for role in missing_slots:
-        if role == "ci" and not has_app:
+        if role == "source":
             continue
-        label = ROLE_LABELS.get(role, role)
-        recommendations.append(f"Optional: add a {label} repository.")
-=======
-    missing_roles = [r for r in PROJECT_SLOT_ROLES if r not in by_role]
-    filled = len(PROJECT_SLOT_ROLES) - len(missing_roles)
-    completeness = round(filled / max(len(PROJECT_SLOT_ROLES), 1) * 100)
->>>>>>> Stashed changes
+        recommendations.append(f"Optional: add a {role_label(role)} repository.")
 
     return {
         "project_id": project_id,
         "completeness_pct": completeness,
         "present_roles": list(by_role.keys()),
-        "missing_roles": missing_slots if has_app else ["test", *missing_slots],
+        "missing_roles": missing_slots,
         "graphs_by_role": dict(by_role),
         "total_graphs": len(graphs),
-<<<<<<< Updated upstream
         "recommendations": recommendations,
-=======
-        "recommendations": [
-            f"Add a {role_label(role)} repository ({role} slot)."
-            for role in missing_roles
-        ],
->>>>>>> Stashed changes
     }

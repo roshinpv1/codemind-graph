@@ -24,18 +24,10 @@ import { PROJECT_SLOTS } from "@/lib/role-labels";
 import { ProjectDna } from "@/components/projects/project-dna";
 import { ProductMap } from "@/components/projects/product-map";
 import { ProjectBriefing } from "@/components/projects/project-briefing";
-<<<<<<< Updated upstream
 import { ProjectOnboarding } from "@/components/projects/project-onboarding";
 import { ProjectSubnav } from "@/components/projects/project-subnav";
 import { ProjectSection } from "@/components/projects/project-section";
 import { ProjectAskTeaser } from "@/components/projects/project-ask-teaser";
-=======
-import { ProjectAskPanel } from "@/components/projects/project-ask-panel";
-import { ProjectSubnav } from "@/components/projects/project-subnav";
-import { ProjectDecisions } from "@/components/projects/project-decisions";
-
-const ROLES: GraphRole[] = ["source", "test", "cd"];
->>>>>>> Stashed changes
 
 export default function ProjectDetailPage() {
   const id = useParams().id as string;
@@ -51,9 +43,13 @@ export default function ProjectDetailPage() {
   if (!project) return <p className="text-red-400">Project not found.</p>;
 
   const graphsByRole: Record<string, typeof project.graphs> = {};
-  const legacySource = project.graphs.filter((g) => g.graph_role === "source");
+  const legacyCi = project.graphs.filter((g) => (g.graph_role as string) === "ci");
   for (const { role } of PROJECT_SLOTS) {
-    graphsByRole[role] = project.graphs.filter((g) => g.graph_role === role);
+    graphsByRole[role] = project.graphs.filter(
+      (g) =>
+        g.graph_role === role ||
+        (role === "source" && (g.graph_role as string) === "ci"),
+    );
   }
 
   const handleDeleteProject = async () => {
@@ -72,6 +68,10 @@ export default function ProjectDetailPage() {
     if (!confirm(`Remove repository index "${graphName}"?`)) return;
     await deleteGraph.mutateAsync(graphId);
   };
+
+  const hasSource = project.graphs.some(
+    (g) => g.graph_role === "source" || (g.graph_role as string) === "ci",
+  );
 
   return (
     <div className="space-y-10">
@@ -98,29 +98,24 @@ export default function ProjectDetailPage() {
         className="mb-0"
       />
 
-<<<<<<< Updated upstream
       <ProjectOnboarding
         projectId={id}
         repositoryCount={
-          project.graphs.some((g) => g.graph_role === "ci" || g.graph_role === "source")
-            ? 1
-            : project.graphs.some((g) => g.graph_role === "test")
-              ? 1
-              : 0
+          hasSource ? 1 : project.graphs.some((g) => g.graph_role === "test") ? 1 : 0
         }
       />
-      <ProjectSubnav />
+      <ProjectSubnav projectId={id} />
 
       <ProjectSection
         id="repositories"
         title="Repositories"
-        description="Three slots: Application (CI role), Test, and CD. Put your main codebase in Application."
+        description="Three slots: Source (application), Test, and CD."
       >
-        {legacySource.length > 0 && (
+        {legacyCi.length > 0 && (
           <Card className="p-4 border-amber-500/30 bg-amber-500/5">
             <p className="text-sm">
-              <span className="font-medium text-amber-400/90">Legacy source repo: </span>
-              {legacySource.map((g) => (
+              <span className="font-medium text-amber-400/90">Legacy CI role: </span>
+              {legacyCi.map((g) => (
                 <Link
                   key={g.id}
                   href={repositoryPath(id, g.id)}
@@ -129,7 +124,10 @@ export default function ProjectDetailPage() {
                   {g.name}
                 </Link>
               ))}
-              <span className="text-muted-foreground"> — still used for analysis until you re-ingest under Application.</span>
+              <span className="text-muted-foreground">
+                {" "}
+                — treated as Source. Re-ingest under Source when convenient.
+              </span>
             </p>
           </Card>
         )}
@@ -158,79 +156,8 @@ export default function ProjectDetailPage() {
         )}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {PROJECT_SLOTS.map(({ role, label, hint }) => {
-=======
-      <ProjectSubnav projectId={id} />
-
-      <section id="understanding" className="space-y-6">
-        <div>
-          <h2 className="text-lg font-semibold">Understanding</h2>
-          <p className="text-sm text-muted-foreground">
-            Structural snapshot — briefing, product map, and findings.
-          </p>
-        </div>
-        <ProjectBriefing projectId={id} />
-        <ProductMap projectId={id} />
-      </section>
-
-      <section id="decisions" className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold">Decisions</h2>
-          <p className="text-sm text-muted-foreground">
-            WHY / DECISION / TRADEOFF markers from application code.
-          </p>
-        </div>
-        <ProjectDecisions projectId={id} />
-      </section>
-
-      <section id="dna" className="space-y-4">
-        <ProjectDna projectId={id} projectName={project.name} />
-      </section>
-
-      <section id="ask" className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold">Questions</h2>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/projects/${id}/investigate`}>Open investigate →</Link>
-          </Button>
-        </div>
-        <ProjectAskPanel projectId={id} projectName={project.name} />
-      </section>
-
-      {summary && (
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground">Role completeness</p>
-          <div className="h-2 bg-muted rounded-full mt-2 overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all"
-              style={{ width: `${summary.completeness_pct}%` }}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {summary.present_roles.join(", ") || "none"}
-            {summary.missing_roles.length > 0 &&
-              ` · missing: ${summary.missing_roles.join(", ")}`}
-          </p>
-          {summary.recommendations.length > 0 && (
-            <ul className="mt-3 text-sm text-yellow-400/90 list-disc pl-4">
-              {summary.recommendations.map((r, i) => (
-                <li key={i}>{r}</li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      )}
-
-      <section id="repositories">
-        <h2 className="text-lg font-semibold mb-4">Repository slots</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Ingest one repository per role. Graphs stay in this project only — they cannot be shared
-          across projects.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {ROLES.map((role) => {
->>>>>>> Stashed changes
             const assigned = graphsByRole[role]?.[0];
-            const required = role === "ci";
+            const required = role === "source";
             return (
               <Card key={role}>
                 <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
@@ -238,7 +165,9 @@ export default function ProjectDetailPage() {
                     <RoleBadge role={role} />
                     {label}
                     {required && (
-                      <span className="text-[10px] uppercase tracking-wide text-primary">Required</span>
+                      <span className="text-[10px] uppercase tracking-wide text-primary">
+                        Required
+                      </span>
                     )}
                   </CardTitle>
                   {assigned && (
@@ -259,7 +188,6 @@ export default function ProjectDetailPage() {
                   {assigned ? (
                     <Link
                       href={repositoryPath(id, assigned.id)}
-<<<<<<< Updated upstream
                       className="hover:text-primary block rounded-md -m-1 p-1"
                     >
                       <p className="font-medium truncate">{assigned.name}</p>
@@ -267,12 +195,6 @@ export default function ProjectDetailPage() {
                       {assigned.status === "ready" && (
                         <p className="text-xs text-muted-foreground mt-2">Open analysis →</p>
                       )}
-=======
-                      className="hover:text-primary block"
-                    >
-                      <p className="font-medium truncate">{assigned.name}</p>
-                      <StatusBadge status={assigned.status} />
->>>>>>> Stashed changes
                     </Link>
                   ) : (
                     <IngestDialog
@@ -291,7 +213,6 @@ export default function ProjectDetailPage() {
             );
           })}
         </div>
-<<<<<<< Updated upstream
       </ProjectSection>
 
       <ProjectSection
@@ -321,13 +242,6 @@ export default function ProjectDetailPage() {
           title="Test coverage"
           description="Functional entry-point coverage rolled up across repositories in this project."
         >
-=======
-      </section>
-
-      {coverage && (
-        <section id="coverage" className="space-y-4">
-          <h2 className="text-lg font-semibold">Functional coverage</h2>
->>>>>>> Stashed changes
           {coverage.warning && (
             <p className="text-sm text-amber-400/90">{coverage.warning}</p>
           )}

@@ -36,7 +36,7 @@ interface IngestDialogProps {
 export function IngestDialog({
   trigger,
   projectId: fixedProjectId,
-  defaultRole = "ci",
+  defaultRole = "source",
   lockRole = false,
 }: IngestDialogProps) {
   const [open, setOpen] = useState(false);
@@ -93,11 +93,7 @@ export function IngestDialog({
         <DialogHeader>
           <DialogTitle>Ingest into project</DialogTitle>
           <DialogDescription>
-<<<<<<< Updated upstream
-            Each repository belongs to one project. Slots: Application (CI role), Test, and CD.
-=======
-            Every graph must belong to a project. One graph per role (source, test, cd).
->>>>>>> Stashed changes
+            Each repository belongs to one project. Slots: Source, Test, and CD.
           </DialogDescription>
         </DialogHeader>
         {noProjects ? (
@@ -152,11 +148,7 @@ export function IngestDialog({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-<<<<<<< Updated upstream
-                      <SelectItem value="ci">Application</SelectItem>
-=======
-                      <SelectItem value="source">Source (application)</SelectItem>
->>>>>>> Stashed changes
+                      <SelectItem value="source">Source</SelectItem>
                       <SelectItem value="test">Test</SelectItem>
                       <SelectItem value="cd">CD</SelectItem>
                     </SelectContent>

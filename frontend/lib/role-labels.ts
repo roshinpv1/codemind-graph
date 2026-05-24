@@ -1,19 +1,19 @@
 import type { GraphRole } from "@/lib/types";
 
-/** User-facing names — CI slot holds application codebase. */
-export const ROLE_LABELS: Record<GraphRole | "source", string> = {
-  source: "Application",
-  ci: "Application",
+export const ROLE_LABELS: Record<string, string> = {
+  source: "Source",
   test: "Test",
   cd: "CD",
 };
 
+/** Legacy graphs may still report role `ci` — show as Source. */
 export function roleLabel(role: string): string {
-  return ROLE_LABELS[role as GraphRole] ?? role;
+  const r = role === "ci" ? "source" : role;
+  return ROLE_LABELS[r] ?? r;
 }
 
 export const PROJECT_SLOTS: { role: GraphRole; label: string; hint: string }[] = [
-  { role: "ci", label: "Application", hint: "Main application codebase (required)" },
+  { role: "source", label: "Source", hint: "Application codebase (required)" },
   { role: "test", label: "Test", hint: "Test suite or automation repo" },
   { role: "cd", label: "CD", hint: "Deploy, infra, Helm, Terraform" },
 ];

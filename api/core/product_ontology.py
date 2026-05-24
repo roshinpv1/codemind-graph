@@ -7,12 +7,7 @@ from api.core.pkb_storage import load_pkb
 from api.core.project_roles import normalize_role, role_label as _slot_role_label
 
 ROLE_LABELS: dict[str, str] = {
-<<<<<<< Updated upstream
-    "source": "Application",
-    "ci": "Application",
-=======
     "source": "Source",
->>>>>>> Stashed changes
     "test": "Test",
     "cd": "CD",
 }
