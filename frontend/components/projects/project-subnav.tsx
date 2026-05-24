@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils";
 const links = [
   { id: "repositories", label: "Repositories" },
   { id: "understanding", label: "Understanding" },
+  { id: "decisions", label: "Decisions" },
+  { id: "delivery", label: "Delivery" },
   { id: "dna", label: "DNA" },
   { id: "ask", label: "Q&A" },
   { id: "coverage", label: "Coverage" },

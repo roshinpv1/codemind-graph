@@ -37,9 +37,9 @@ export default function HealthPage() {
     retry: 1,
   });
 
-  const { data: deadCode, isLoading: deadLoading, isError: deadError } = useQuery({
-    queryKey: ["health", graphId, "dead"],
-    queryFn: () => dueDiligenceApi.deadCode(graphId),
+  const { data: deadTiered, isLoading: deadLoading, isError: deadError } = useQuery({
+    queryKey: ["health", graphId, "dead-tiered"],
+    queryFn: () => dueDiligenceApi.deadCodeTiered(graphId),
     enabled,
     retry: 1,
   });
@@ -146,23 +146,45 @@ export default function HealthPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Unreferenced code</CardTitle>
-          <CardDescription>Components with no incoming references (possible dead or entry-only code)</CardDescription>
+          <CardTitle className="text-base">Dead code tiers</CardTitle>
+          <CardDescription>
+            Safe to remove (no incoming or outgoing) vs review first (possible entry/orchestrator)
+          </CardDescription>
         </CardHeader>
-        <CardContent className="text-sm space-y-2 max-h-80 overflow-auto">
+        <CardContent className="text-sm space-y-4 max-h-96 overflow-auto">
           {deadError ? (
-            <QueryError message="Could not load dead-code list." />
-          ) : (deadCode ?? []).length === 0 ? (
-            <p className="text-muted-foreground">None detected with current heuristics.</p>
+            <QueryError message="Could not load dead-code tiers." />
           ) : (
-            (deadCode ?? []).slice(0, 25).map((n) => (
-              <div key={String(n.id)} className="flex justify-between border-b pb-2 font-mono text-xs gap-2">
-                <span className="truncate">{String(n.label)}</span>
-                <span className="text-muted-foreground shrink-0 truncate max-w-[50%]">
-                  {String(n.source_file)}
-                </span>
+            <>
+              <div>
+                <p className="text-xs font-medium text-green-600/90 mb-2">
+                  Safe to remove ({deadTiered?.safe_count ?? 0})
+                </p>
+                {(deadTiered?.safe_to_remove ?? []).length === 0 ? (
+                  <p className="text-muted-foreground text-xs">None</p>
+                ) : (
+                  (deadTiered?.safe_to_remove ?? []).slice(0, 15).map((n) => (
+                    <div key={String(n.id)} className="flex justify-between border-b pb-1 font-mono text-xs gap-2">
+                      <span className="truncate">{String(n.label)}</span>
+                      <span className="text-muted-foreground truncate max-w-[45%]">{String(n.source_file)}</span>
+                    </div>
+                  ))
+                )}
               </div>
-            ))
+              <div>
+                <p className="text-xs font-medium text-amber-500/90 mb-2">
+                  Review first ({deadTiered?.review_count ?? 0})
+                </p>
+                {(deadTiered?.review_first ?? []).slice(0, 15).map((n) => (
+                  <div key={String(n.id)} className="flex justify-between border-b pb-1 font-mono text-xs gap-2">
+                    <span className="truncate">{String(n.label)}</span>
+                    <span className="text-muted-foreground truncate max-w-[45%]">
+                      {String(n.source_file)} · out {String(n.out_degree)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

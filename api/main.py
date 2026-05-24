@@ -99,3 +99,37 @@ def root():
 @app.get("/health", tags=["Health"])
 def health():
     return {"status": "ok"}
+
+
+@app.get("/mcp/tools", tags=["MCP"])
+def mcp_tools_list():
+    """Agent tool catalog (invoke via POST /mcp/invoke)."""
+    from api.mcp_project_tools import TOOLS
+    return {
+        "tools": [
+            {"name": k, "description": (v.__doc__ or "").strip()}
+            for k, v in TOOLS.items()
+        ]
+    }
+
+
+@app.post("/mcp/invoke", tags=["MCP"])
+def mcp_invoke(body: dict):
+    """Run a project tool: {tool, project_id, ...args}."""
+    from api.mcp_project_tools import TOOLS
+    from fastapi import HTTPException
+
+    tool = body.get("tool")
+    if tool not in TOOLS:
+        raise HTTPException(404, f"Unknown tool {tool!r}")
+    project_id = body.get("project_id")
+    if not project_id:
+        raise HTTPException(400, "project_id required")
+    fn = TOOLS[tool]
+    if tool == "project_ask":
+        return fn(project_id, body.get("question", ""), body.get("persona", "developer"))
+    if tool == "blast_radius":
+        return fn(project_id, body.get("paths", []))
+    if tool == "coverage_gaps":
+        return fn(project_id, body.get("limit", 20))
+    return fn(project_id)

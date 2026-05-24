@@ -1,6 +1,7 @@
 """User-facing product ontology — maps PKB/graph internals to capabilities, areas, findings."""
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from api.core.pkb_storage import load_pkb
@@ -219,6 +220,35 @@ def get_briefing_user(project_id: str) -> dict[str, Any]:
     }
 
 
+def _word_match(needle: str, haystack: str) -> bool:
+    if len(needle) < 3:
+        return False
+    return bool(re.search(rf"\b{re.escape(needle)}\b", haystack, re.I))
+
+
+def compute_retrieval_quality(
+    pkb: dict | None,
+    evidence: list[dict],
+    intent: str,
+) -> dict[str, Any]:
+    score = 0
+    if pkb:
+        score += 2
+    if evidence:
+        score += min(3, len(evidence))
+    if pkb and pkb.get("module_briefs"):
+        score += 1
+    if intent in ("coverage", "risk", "architecture") and len(evidence) < 2:
+        score -= 1
+    level = "high" if score >= 5 else "medium" if score >= 3 else "low"
+    return {
+        "score": score,
+        "level": level,
+        "evidence_count": len(evidence),
+        "pkb_ready": bool(pkb),
+    }
+
+
 def build_answer_card(
     answer: str,
     persona: str,
@@ -226,19 +256,25 @@ def build_answer_card(
     evidence: list[dict],
     *,
     confidence: str = "medium",
+    retrieval_quality: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Structure LLM answer for UI — no graph jargon in primary fields."""
     related: list[dict] = []
     gaps: list[str] = []
+    answer_l = answer.lower()
     if pkb:
-        for cap in pkb.get("capabilities_ui", [])[:5]:
-            if cap["name"].lower() in answer.lower():
-                related.append({"name": cap["name"], "type": "capability", "test_status": cap["test_status"]})
-        for f in pkb.get("findings", [])[:8]:
+        for cap in pkb.get("capabilities_ui", [])[:12]:
+            name = cap.get("name", "")
+            if name and _word_match(name, answer_l):
+                related.append({"name": name, "type": "capability", "test_status": cap["test_status"]})
+        for f in pkb.get("findings", [])[:12]:
             if not f.get("title"):
                 continue
+            title = f["title"]
             if f.get("category_key") == "coverage_gap":
-                gaps.append(f["title"])
+                gaps.append(title)
+            elif _word_match(title.split(":")[-1].strip()[:40], answer_l):
+                related.append({"name": title, "type": "finding", "severity": f.get("severity")})
     for e in evidence[:6]:
         lbl = e.get("label") or e.get("node_id")
         if lbl and not any(r["name"] == lbl for r in related):
@@ -248,12 +284,18 @@ def build_answer_card(
                 "file": e.get("source_file"),
             })
 
+    rq = retrieval_quality or {}
+    conf = confidence
+    if rq.get("level") == "low" and conf == "high":
+        conf = "medium"
+
     return {
         "summary": answer,
-        "confidence": confidence,
+        "confidence": conf,
         "confidence_label": {"high": "High confidence", "medium": "Medium confidence", "low": "Low confidence"}.get(
-            confidence, "Medium confidence"
+            conf, "Medium confidence"
         ),
+        "retrieval_quality": rq,
         "related": related[:8],
         "gaps": gaps[:5],
         "suggested_next_steps": _next_steps(persona, gaps),

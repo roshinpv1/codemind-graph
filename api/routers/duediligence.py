@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from api.core import engine, database
 from api.core.graph_health import (
+    classify_dead_code,
     count_circular_dependencies,
     dead_code_candidates,
     dead_code_node_ids,
@@ -150,6 +151,13 @@ def dead_code(graph_id: str, limit: int = 500):
     _require_ready(graph_id)
     G = engine.load_graph(graph_id)
     return dead_code_candidates(G, limit=min(limit, 1000))
+
+
+@router.get("/dead-code/tiered", response_model=dict, summary="Tiered dead code (safe vs review)")
+def dead_code_tiered(graph_id: str, limit: int = 500):
+    _require_ready(graph_id)
+    G = engine.load_graph(graph_id)
+    return classify_dead_code(G, limit=min(limit, 1000))
 
 
 @router.get("/complexity", response_model=list[dict], summary="Per-community complexity metrics")

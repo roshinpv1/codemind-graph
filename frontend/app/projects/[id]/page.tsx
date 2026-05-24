@@ -28,6 +28,8 @@ import { ProjectOnboarding } from "@/components/projects/project-onboarding";
 import { ProjectSubnav } from "@/components/projects/project-subnav";
 import { ProjectSection } from "@/components/projects/project-section";
 import { ProjectAskTeaser } from "@/components/projects/project-ask-teaser";
+import { ProjectDecisions } from "@/components/projects/project-decisions";
+import { ProjectDelivery } from "@/components/projects/project-delivery";
 
 export default function ProjectDetailPage() {
   const id = useParams().id as string;
@@ -222,6 +224,22 @@ export default function ProjectDetailPage() {
       >
         <ProjectBriefing projectId={id} />
         <ProductMap projectId={id} />
+      </ProjectSection>
+
+      <ProjectSection
+        id="decisions"
+        title="Architectural decisions"
+        description="Extracted from # WHY, # DECISION, and # TRADEOFF comments in your codebase."
+      >
+        <ProjectDecisions projectId={id} />
+      </ProjectSection>
+
+      <ProjectSection
+        id="delivery"
+        title="Delivery"
+        description="Static CD config from your repository plus optional live cluster snapshot."
+      >
+        <ProjectDelivery projectId={id} />
       </ProjectSection>
 
       <ProjectSection

@@ -12,10 +12,12 @@ from api.core.cross_graph import loadable_graphs
 from api.core.project_roles import application_graphs
 from api.core.intent_router import classify_intent, SCENARIO_PACKS
 from api.core.pkb_storage import load_pkb, append_memory
+from api.core.graph_context import hub_seeded_context
 from api.core.product_ontology import (
     enrich_pkb,
     get_briefing_user,
     build_answer_card,
+    compute_retrieval_quality,
     technical_proof,
     repository_role_label,
 )
@@ -94,6 +96,22 @@ def _pkb_context_sections(pkb: dict[str, Any], sections: list[str], char_budget:
     if "flows" in sections and pkb.get("journeys"):
         lines = [f"- {j['name']}: {j.get('summary', '')} [{j.get('test_status', '')}]" for j in pkb["journeys"][:8]]
         parts.append("## User journeys\n" + "\n".join(lines))
+    if "module_briefs" in sections and pkb.get("module_briefs"):
+        brief_lines = []
+        for key, text_b in list(pkb["module_briefs"].items())[:6]:
+            brief_lines.append(f"- {key}: {text_b[:200]}")
+        if brief_lines:
+            parts.append("## Module briefs\n" + "\n".join(brief_lines))
+    if "decisions" in sections and pkb.get("decisions"):
+        dec_lines = [f"- [{d.get('kind', 'note')}] {d.get('title', '')}" for d in pkb["decisions"][:10]]
+        parts.append("## Architectural decisions\n" + "\n".join(dec_lines))
+    if "delivery" in sections and pkb.get("delivery"):
+        deliv = pkb["delivery"]
+        parts.append(
+            "## Delivery\n"
+            f"- Static infra resources: {deliv.get('static_resource_count', 0)}\n"
+            f"- Last cluster snapshot: {deliv.get('cluster_snapshot_at') or 'none'}"
+        )
     text = "\n\n".join(parts)
     if len(text) > char_budget:
         return text[:char_budget] + "\n...(truncated)"
@@ -286,14 +304,19 @@ def project_ask(
     structural = application_graphs(loadable)
     depth = min(max(depth, 1), 6)
     per_graph = max(400, 1200 // max(len(structural), 1))
+    use_hub = routing["intent"] in ("architecture", "blast_radius", "risk")
     for gmeta in structural[:4]:
         G = engine.load_graph(gmeta["id"])
         role = gmeta["graph_role"] or "source"
-        block, ev = _graph_context_block(
-            G, question, mode=mode, depth=depth,
-            header=f"{gmeta['name']} — {repository_role_label(role)}",
-            char_budget=per_graph,
-        )
+        if use_hub:
+            body, ev, _ = hub_seeded_context(G, question, mode=mode, depth=depth, char_budget=per_graph)
+            block = f"### Graph slice: {gmeta['name']} — {repository_role_label(role)}\n{body}" if body else ""
+        else:
+            block, ev = _graph_context_block(
+                G, question, mode=mode, depth=depth,
+                header=f"{gmeta['name']} — {repository_role_label(role)}",
+                char_budget=per_graph,
+            )
         if block:
             context_parts.append(block)
             for e in ev:
@@ -337,8 +360,13 @@ def project_ask(
         "ANSWER:"
     )
     answer = engine.llm_ask(prompt, backend=backend, max_tokens=1000)
-    confidence = "high" if pkb and len(all_evidence) >= 3 else "medium"
-    answer_card = build_answer_card(answer, persona, pkb, all_evidence, confidence=confidence)
+    rq = compute_retrieval_quality(pkb, all_evidence, routing["intent"])
+    confidence = rq["level"] if pkb else ("medium" if all_evidence else "low")
+    answer_card = build_answer_card(
+        answer, persona, pkb, all_evidence,
+        confidence=confidence,
+        retrieval_quality=rq,
+    )
     structured = _structure_for_persona(persona, answer, pkb or {}, all_evidence)
     proof = technical_proof(all_evidence, sources)
 

@@ -12,6 +12,7 @@ INTENTS = (
     "where_is",
     "onboarding",
     "risk",
+    "blast_radius",
     "general",
 )
 
@@ -30,6 +31,9 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     )),
     ("risk", re.compile(
         r"\b(risk|danger|concern|debt|health|issue|problem|fragile)\b", re.I
+    )),
+    ("blast_radius", re.compile(
+        r"\b(blast\s*radius|impact\s+of\s+change|what\s+breaks|affected\s+by)\b", re.I
     )),
     ("how_it_works", re.compile(
         r"\b(how\s+does|how\s+do|explain|flow|work|process|end\s*to\s*end)\b", re.I
@@ -64,7 +68,8 @@ def _sections_for_intent(intent: str) -> list[str]:
         "where_is": ["capabilities", "subsystems"],
         "onboarding": ["dna", "flows", "subsystems"],
         "risk": ["risks", "metrics", "dna"],
-        "general": ["dna", "risks", "capabilities", "subsystems"],
+        "blast_radius": ["risks", "subsystems", "module_briefs", "decisions"],
+        "general": ["dna", "risks", "capabilities", "subsystems", "module_briefs"],
     }
     return mapping.get(intent, mapping["general"])
 

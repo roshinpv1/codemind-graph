@@ -22,6 +22,10 @@ from pydantic import BaseModel, Field
 from api.core import database, engine, storage
 from api.core.cross_graph import loadable_graphs
 from api.core.project_query import list_personas, project_ask, project_search
+from api.core.project_view import build_project_view
+from api.core.project_risk import project_blast_radius
+from api.core.project_decisions import collect_project_decisions
+from api.core.cluster_snapshot import capture_cluster_snapshot, load_snapshot
 from api.core.project_synthesis import synthesize_project, compute_delta, maybe_synthesize_project
 from api.core.project_dna import generate_project_dna, get_project_dna
 from api.core import pkb_storage
@@ -251,10 +255,15 @@ def project_coverage(project_id: str, limit: int = 50):
     Requires at least one `role=source` graph.  For accurate results also add a
     `role=test` graph via `POST /projects/{id}/graphs`.
     """
-    from api.core.project_roles import application_graphs, coverage_test_graphs, normalize_role
+    from api.core.project_roles import (
+        application_graphs,
+        coverage_test_graphs,
+        graph_dict,
+        normalize_role,
+    )
 
     _require_project(project_id)
-    graphs = database.get_project_graphs(project_id)
+    graphs = [graph_dict(g) for g in database.get_project_graphs(project_id)]
     loadable = loadable_graphs(graphs)
     if not any(normalize_role(g.get("graph_role")) == "source" for g in graphs):
         raise HTTPException(400, "No 'source' graph in project. Ingest application code first.")
@@ -520,6 +529,81 @@ def project_ask_route(
     )
 
 
+class BlastRadiusRequest(BaseModel):
+    paths: list[str] = Field(..., min_length=1, description="Changed file paths (repo-relative)")
+    depth: int = Field(4, ge=1, le=6)
+
+
+class ClusterSnapshotRequest(BaseModel):
+    kubeconfig: str | None = None
+    context: str | None = None
+    namespace: str | None = None
+
+
+@router.get("/{project_id}/view", response_model=dict, summary="360° project view (single payload)")
+def project_view_route(project_id: str):
+    _require_project(project_id)
+    try:
+        return build_project_view(project_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.get("/{project_id}/decisions", response_model=dict, summary="Architectural decisions from code comments")
+def project_decisions_route(project_id: str, limit: int = 30):
+    _require_project(project_id)
+    pkb = pkb_storage.load_pkb(project_id)
+    decisions = (pkb or {}).get("decisions") or collect_project_decisions(project_id)
+    return {"project_id": project_id, "decisions": decisions[:limit], "count": len(decisions)}
+
+
+@router.post("/{project_id}/blast-radius", response_model=dict, summary="Blast radius for pasted file paths")
+def project_blast_radius_route(project_id: str, req: BlastRadiusRequest):
+    _require_project(project_id)
+    return project_blast_radius(project_id, req.paths, depth=req.depth)
+
+
+@router.get("/{project_id}/cluster/snapshot", response_model=dict, summary="Last cluster snapshot metadata")
+def get_cluster_snapshot_route(project_id: str):
+    _require_project(project_id)
+    snap = load_snapshot(project_id)
+    if not snap:
+        return {"project_id": project_id, "snapshot": None, "message": "No cluster snapshot yet."}
+    return {"project_id": project_id, "snapshot": snap}
+
+
+@router.post("/{project_id}/cluster/snapshot", response_model=dict, summary="Capture cluster snapshot (kubectl)")
+def post_cluster_snapshot_route(project_id: str, req: ClusterSnapshotRequest):
+    _require_project(project_id)
+    try:
+        snap = capture_cluster_snapshot(
+            project_id,
+            kubeconfig=req.kubeconfig,
+            context=req.context,
+            namespace=req.namespace,
+        )
+        maybe_synthesize_project(project_id)
+        return {"ok": True, "project_id": project_id, "snapshot": snap}
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+@router.get("/{project_id}/delivery", response_model=dict, summary="Delivery plane: static CD + cluster drift")
+def project_delivery_route(project_id: str):
+    _require_project(project_id)
+    pkb = pkb_storage.load_pkb(project_id)
+    if not pkb:
+        raise HTTPException(409, "Refresh project understanding first.")
+    from api.core.product_ontology import enrich_pkb
+    pkb = enrich_pkb(pkb) or pkb
+    return {
+        "project_id": project_id,
+        "delivery": pkb.get("delivery", {}),
+        "deploy_links": pkb.get("deploy_links", [])[:40],
+        "snapshot": load_snapshot(project_id),
+    }
+
+
 @router.get("/{project_id}/summary", response_model=dict, summary="Cross-role project health summary")
 def project_summary(project_id: str):
     """
@@ -527,12 +611,18 @@ def project_summary(project_id: str):
     Shows what roles are present, graph statuses, and quick stats.
     """
     _require_project(project_id)
-    from api.core.project_roles import PROJECT_SLOT_ROLES, normalize_role, role_label
+    from api.core.project_roles import (
+        PROJECT_SLOT_ROLES,
+        graph_dict,
+        has_application_graph,
+        normalize_role,
+        role_label,
+    )
 
-    graphs = database.get_project_graphs(project_id)
+    graphs = [graph_dict(g) for g in database.get_project_graphs(project_id)]
     by_role: dict[str, list] = defaultdict(list)
     for g in graphs:
-        role = normalize_role(g["graph_role"])
+        role = normalize_role(g.get("graph_role"))
         by_role[role].append({
             "id": g["id"],
             "name": g["name"],
@@ -540,8 +630,6 @@ def project_summary(project_id: str):
             "node_count": g["node_count"],
             "edge_count": g["edge_count"],
         })
-
-    from api.core.project_roles import PROJECT_SLOT_ROLES, has_application_graph, role_label
 
     has_app = has_application_graph(graphs)
     missing_slots = [r for r in PROJECT_SLOT_ROLES if r not in by_role]

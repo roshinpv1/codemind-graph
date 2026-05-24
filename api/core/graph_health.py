@@ -73,6 +73,47 @@ def dead_code_node_ids(G: nx.Graph, *, limit: int = 5_000) -> list[str]:
     return [r["id"] for r in dead_code_candidates(G, limit=limit)]
 
 
+def classify_dead_code(G: nx.Graph, *, limit: int = 500) -> dict[str, list[dict]]:
+    """
+    Tier dead-code candidates:
+    - safe_to_remove: no incoming refs and no outgoing calls (isolated)
+    - review_first: no incoming but has outgoing (possible entry/orchestrator)
+    """
+    safe: list[dict] = []
+    review: list[dict] = []
+    for n, data in G.nodes(data=True):
+        if not _is_trackable_code_node(data):
+            continue
+        if G.is_directed():
+            in_deg = G.in_degree(n)
+            out_deg = G.out_degree(n)
+        else:
+            in_deg = G.degree(n)
+            out_deg = in_deg
+        if in_deg != 0:
+            continue
+        row = {
+            "id": n,
+            "label": data.get("label", n),
+            "source_file": data.get("source_file", ""),
+            "out_degree": out_deg,
+            "confidence": "high" if out_deg == 0 else "medium",
+        }
+        if out_deg == 0:
+            safe.append(row)
+        else:
+            review.append(row)
+        if len(safe) + len(review) >= limit:
+            break
+    key = lambda x: (x.get("source_file") or "", x.get("label") or "")
+    return {
+        "safe_to_remove": sorted(safe, key=key)[:limit],
+        "review_first": sorted(review, key=key)[:limit],
+        "safe_count": len(safe),
+        "review_count": len(review),
+    }
+
+
 def sample_cycles_for_display(
     G: nx.Graph,
     *,

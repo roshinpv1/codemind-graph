@@ -189,6 +189,13 @@ export const dueDiligenceApi = {
   debt: (id: string) => request<Record<string, unknown>[]>(`/graphs/${id}/due-diligence/debt`),
   deadCode: (id: string) =>
     request<Record<string, unknown>[]>(`/graphs/${id}/due-diligence/dead-code`),
+  deadCodeTiered: (id: string) =>
+    request<{
+      safe_to_remove: Record<string, unknown>[];
+      review_first: Record<string, unknown>[];
+      safe_count: number;
+      review_count: number;
+    }>(`/graphs/${id}/due-diligence/dead-code/tiered`),
   complexity: (id: string) =>
     request<Record<string, unknown>[]>(`/graphs/${id}/due-diligence/complexity`),
   report: (id: string, narrative = false) =>
@@ -355,6 +362,26 @@ export const projectsApi = {
   delta: (id: string) => request<Record<string, unknown>>(`/projects/${id}/delta`),
   memory: (id: string, limit = 20) =>
     request<{ items: Record<string, unknown>[] }>(`/projects/${id}/memory?limit=${limit}`),
+  view: (id: string) =>
+    request<Record<string, unknown>>(`/projects/${id}/view`),
+  decisions: (id: string, limit = 30) =>
+    request<{ decisions: Record<string, unknown>[]; count: number }>(
+      `/projects/${id}/decisions?limit=${limit}`,
+    ),
+  blastRadius: (id: string, paths: string[], depth = 4) =>
+    request<Record<string, unknown>>(`/projects/${id}/blast-radius`, {
+      method: "POST",
+      body: JSON.stringify({ paths, depth }),
+    }),
+  delivery: (id: string) =>
+    request<Record<string, unknown>>(`/projects/${id}/delivery`),
+  clusterSnapshot: (id: string, body?: { kubeconfig?: string; context?: string; namespace?: string }) =>
+    request<Record<string, unknown>>(`/projects/${id}/cluster/snapshot`, {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+  getClusterSnapshot: (id: string) =>
+    request<Record<string, unknown>>(`/projects/${id}/cluster/snapshot`),
 };
 
 export { ApiError };

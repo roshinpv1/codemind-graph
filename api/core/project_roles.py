@@ -56,6 +56,12 @@ def application_graphs(loadable: list[Any]) -> list[dict]:
     return rows[:1] if rows else []
 
 
+def cd_graphs(loadable: list[Any]) -> list[dict]:
+    """CD / infra repository graphs for delivery plane."""
+    rows = [graph_dict(g) for g in loadable]
+    return [g for g in rows if normalize_role(g.get("graph_role")) == "cd"]
+
+
 def coverage_test_graphs(loadable: list[Any]) -> list[dict]:
     """Test-suite repos for cross-repo coverage (not the application graph)."""
     rows = [graph_dict(g) for g in loadable]

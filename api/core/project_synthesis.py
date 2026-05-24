@@ -18,8 +18,15 @@ from api.routers.coverage import (
     _bfs_from,
     _is_test_node,
 )
-from api.core.cross_graph import loadable_graphs, cross_graph_match_entry_points
-from api.core.project_roles import application_graphs, coverage_test_graphs
+from api.core.cross_graph import (
+    loadable_graphs,
+    cross_graph_match_entry_points,
+    build_coverage_links,
+    covered_entry_ids_from_links,
+)
+from api.core.project_roles import application_graphs, coverage_test_graphs, cd_graphs
+from api.core.project_decisions import collect_project_decisions
+from api.core.cluster_snapshot import load_snapshot, compute_drift
 
 
 def _evidence(
@@ -94,6 +101,10 @@ def synthesize_project(
         "open_questions": [],
         "scenarios": SCENARIO_PACKS,
         "synthesis_notes": [],
+        "coverage_links": [],
+        "deploy_links": [],
+        "decisions": [],
+        "delivery": {},
     }
 
     if not loadable:
@@ -211,12 +222,20 @@ def synthesize_project(
         reachable = _bfs_from(G_source, test_ids) if test_ids else set()
         covered = set(entry_pts.keys()) & reachable
 
+        test_pairs: list[tuple[dict, nx.Graph]] = []
         covered_cross: set[str] = set()
+        coverage_links: list[dict] = []
         for tg in loadable_graphs(coverage_test_graphs(loadable)):
             G_test = engine.load_graph(tg["id"])
             covered_cross |= cross_graph_match_entry_points(G_source, G_test, entry_pts)
+            test_pairs.append((tg, G_test))
+        if test_pairs:
+            coverage_links = build_coverage_links(G_source, test_pairs, entry_pts)
+            covered_from_links = covered_entry_ids_from_links(entry_pts, coverage_links)
+            covered_cross |= covered_from_links
 
         all_covered = covered | covered_cross
+        pkb["coverage_links"] = coverage_links
         func_pct = round(len(all_covered) / max(len(entry_pts), 1) * 100, 1)
         gaps_count = len(entry_pts) - len(all_covered)
 
@@ -251,6 +270,64 @@ def synthesize_project(
 
     pkb["capabilities"] = capabilities
 
+    # ── CD / delivery plane ─────────────────────────────────────────────────
+    deploy_links: list[dict] = []
+    static_infra_names: set[str] = set()
+    for cg in cd_graphs(loadable):
+        G_cd = engine.load_graph(cg["id"])
+        for nid, d in G_cd.nodes(data=True):
+            lbl = (d.get("label") or nid).strip()
+            if lbl:
+                static_infra_names.add(lbl)
+            for cap in capabilities[:30]:
+                cap_lbl = cap["label"].lower()
+                cap_file = (cap.get("source_file") or "").lower()
+                if cap_lbl in lbl.lower() or (cap_file and cap_file.split("/")[-1] in lbl.lower()):
+                    deploy_links.append({
+                        "app_capability": cap["label"],
+                        "infra_resource": lbl,
+                        "confidence": "medium",
+                        "method": "name_heuristic",
+                        "graph_id": cg["id"],
+                    })
+        for s in list({n for n in static_infra_names})[:20]:
+            pkb["risks"].append({
+                "severity": "info",
+                "category": "operations",
+                "title": f"Infra resource: {s}",
+                "detail": "Indexed from CD repository (static config).",
+                "evidence": [_evidence(cg["id"], "cd", cg["name"], detail=s)],
+            })
+
+    snapshot = load_snapshot(project_id)
+    drift = compute_drift(static_infra_names, snapshot)
+    for row in drift:
+        if row["status"] == "not_deployed":
+            pkb["risks"].append({
+                "severity": "medium",
+                "category": "operations",
+                "title": f"Declared but not running: {row['resource']}",
+                "detail": "Present in CD config graph but not in last cluster snapshot.",
+                "evidence": [],
+            })
+        elif row["status"] == "undeclared_running":
+            pkb["risks"].append({
+                "severity": "low",
+                "category": "operations",
+                "title": f"Running but not in CD config: {row['resource']}",
+                "detail": "Seen in cluster snapshot without matching static config node.",
+                "evidence": [],
+            })
+
+    pkb["deploy_links"] = deploy_links[:80]
+    pkb["delivery"] = {
+        "static_resource_count": len(static_infra_names),
+        "cluster_snapshot_at": snapshot.get("captured_at") if snapshot else None,
+        "cluster_resource_count": snapshot.get("resource_count", 0) if snapshot else 0,
+        "drift": drift[:30],
+    }
+    pkb["decisions"] = collect_project_decisions(project_id)
+
     # ── Flows (top entry points) ───────────────────────────────────────────
     for cap in capabilities[:8]:
         pkb["flows"].append({
@@ -269,6 +346,11 @@ def synthesize_project(
     grade = "A" if func_pct >= 80 else "B" if func_pct >= 60 else "C" if func_pct >= 40 else "D" if func_pct >= 20 else "F"
     health = "green" if func_pct >= 70 and len(pkb["risks"]) < 8 else "yellow" if func_pct >= 40 else "red"
 
+    dead_tiers = {"safe_count": 0, "review_count": 0}
+    if loadable_source:
+        from api.core.graph_health import classify_dead_code
+        dead_tiers = classify_dead_code(G_source)
+
     pkb["metrics"] = {
         "total_nodes": total_nodes,
         "total_edges": total_edges,
@@ -280,6 +362,11 @@ def synthesize_project(
         "risk_count": len(pkb["risks"]),
         "subsystem_count": len(subsystems),
         "health": health,
+        "dead_code_safe": dead_tiers.get("safe_count", 0),
+        "dead_code_review": dead_tiers.get("review_count", 0),
+        "coverage_link_count": len(pkb.get("coverage_links", [])),
+        "deploy_link_count": len(pkb.get("deploy_links", [])),
+        "decision_count": len(pkb.get("decisions", [])),
     }
 
     # ── Project DNA (short snapshot — full narrative via POST /projects/{id}/dna/generate) ──
