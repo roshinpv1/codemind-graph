@@ -27,7 +27,7 @@ def init_db() -> None:
             status      TEXT NOT NULL DEFAULT 'pending',
             backend     TEXT,
             -- role classifies what this graph represents:
-            -- source | test | ci | cd
+            -- source | test | cd  (legacy ci rows normalized to source)
             graph_role  TEXT NOT NULL DEFAULT 'source',
             project_id  TEXT,
             node_count  INTEGER DEFAULT 0,
@@ -126,11 +126,21 @@ def list_graphs(project_id: str | None = None) -> list[sqlite3.Row]:
 
 
 def get_graph_for_project_role(project_id: str, graph_role: str) -> sqlite3.Row | None:
+    from api.core.project_roles import normalize_role
+
+    role = normalize_role(graph_role)
     conn = get_conn()
-    return conn.execute(
+    row = conn.execute(
         "SELECT * FROM graphs WHERE project_id = ? AND graph_role = ? LIMIT 1",
-        (project_id, graph_role),
+        (project_id, role),
     ).fetchone()
+    # Legacy rows stored as ci before ci was merged into source.
+    if row is None and role == "source":
+        row = conn.execute(
+            "SELECT * FROM graphs WHERE project_id = ? AND graph_role = 'ci' LIMIT 1",
+            (project_id,),
+        ).fetchone()
+    return row
 
 
 def delete_graph_row(graph_id: str) -> None:

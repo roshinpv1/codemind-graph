@@ -34,11 +34,13 @@ def _require_ready(graph_id: str):
 
 
 def _row_to_meta(row) -> GraphMeta:
+    from api.core.project_roles import normalize_graph_meta
+
     keys = row.keys()
     data = {k: row[k] for k in keys}
     data.setdefault("graph_role", "source")
     data.setdefault("project_id", None)
-    return GraphMeta(**data)
+    return GraphMeta(**normalize_graph_meta(data))
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────

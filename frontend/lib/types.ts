@@ -1,5 +1,5 @@
 export type GraphStatus = "pending" | "running" | "ready" | "failed";
-export type GraphRole = "source" | "test" | "ci" | "cd";
+export type GraphRole = "source" | "test" | "cd";
 
 export interface GraphMeta {
   id: string;

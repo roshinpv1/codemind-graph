@@ -93,7 +93,11 @@ export default function ProjectsPage() {
         </div>
       ) : !projects?.length ? (
         <Card className="p-12 text-center text-muted-foreground">
+<<<<<<< Updated upstream
           <p>Create a project, then add your application repo in the Application slot (Test and CD optional).</p>
+=======
+          <p>Create a project, then ingest repositories into role slots (source, test, cd).</p>
+>>>>>>> Stashed changes
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -24,7 +24,7 @@ Set in `.env.local`.
 ## Features
 
 - **Dashboard** — graphs, projects, coverage overview
-- **Projects** — multi-repo grouping (source / test / ci / cd) with functional coverage
+- **Projects** — multi-repo grouping (source / test / cd) with functional coverage
 - **Graph detail** — Overview, Coverage, Architecture, Security, Health, Search, Docs
 - **Ingest** — index repositories with role and project assignment
 - **Command palette** — `Cmd+K` to jump to graphs

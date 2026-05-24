@@ -4,10 +4,15 @@ from __future__ import annotations
 from typing import Any
 
 from api.core.pkb_storage import load_pkb
+from api.core.project_roles import normalize_role, role_label as _slot_role_label
 
 ROLE_LABELS: dict[str, str] = {
+<<<<<<< Updated upstream
     "source": "Application",
     "ci": "Application",
+=======
+    "source": "Source",
+>>>>>>> Stashed changes
     "test": "Test",
     "cd": "CD",
 }
@@ -26,7 +31,7 @@ HEALTH_LABELS = {"green": "Healthy", "yellow": "Needs attention", "red": "At ris
 
 
 def repository_role_label(role: str | None) -> str:
-    return ROLE_LABELS.get((role or "source").lower(), role or "Repository")
+    return ROLE_LABELS.get(normalize_role(role), _slot_role_label(role))
 
 
 def capability_test_label(covered: bool) -> str:

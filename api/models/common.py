@@ -2,7 +2,7 @@
 from __future__ import annotations
 from enum import Enum
 from typing import Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class GraphStatus(str, Enum):
@@ -14,10 +14,16 @@ class GraphStatus(str, Enum):
 
 class GraphRole(str, Enum):
     """What a graph represents within a project."""
+<<<<<<< Updated upstream
     source = "source"   # legacy: application code (prefer ci)
     ci     = "ci"       # application codebase (primary slot in UI: "Application")
     test   = "test"     # test suite / automation
     cd     = "cd"       # deployment / infra (Terraform, Helm, K8s manifests)
+=======
+    source = "source"   # application / production code
+    test   = "test"     # regression / automation test suite
+    cd     = "cd"       # CD / deployment / infra
+>>>>>>> Stashed changes
 
 
 class GraphMeta(BaseModel):
@@ -52,14 +58,26 @@ class IngestRequest(BaseModel):
         GraphRole.source,
         description=(
             "Role this graph plays within a project. "
+<<<<<<< Updated upstream
             "'ci' = application codebase, 'test' = test suite, "
             "'cd' = deployment/infra; 'source' = legacy application role."
+=======
+            "'source' = application code, 'test' = regression/automation tests, "
+            "'cd' = deployment/infra files."
+>>>>>>> Stashed changes
         ),
     )
     project_id: str = Field(
         ...,
         description="Project this graph belongs to. Create via POST /projects first.",
     )
+
+    @field_validator("graph_role", mode="before")
+    @classmethod
+    def _coerce_legacy_ci(cls, v: Any) -> Any:
+        if isinstance(v, str) and v.lower() == "ci":
+            return GraphRole.source
+        return v
 
 
 # ── Project models ────────────────────────────────────────────────────────────
@@ -81,6 +99,13 @@ class ProjectOut(BaseModel):
 class AssignGraphRequest(BaseModel):
     graph_id: str = Field(..., description="ID of an existing ready graph")
     graph_role: GraphRole = Field(..., description="Role this graph plays in the project")
+
+    @field_validator("graph_role", mode="before")
+    @classmethod
+    def _coerce_legacy_ci(cls, v: Any) -> Any:
+        if isinstance(v, str) and v.lower() == "ci":
+            return GraphRole.source
+        return v
 
 
 class NodeOut(BaseModel):

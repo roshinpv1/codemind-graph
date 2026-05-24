@@ -19,15 +19,20 @@ export function StatusBadge({ status }: { status: GraphStatus }) {
 }
 
 export function RoleBadge({ role }: { role: string }) {
+  const display = role === "ci" ? "source" : role;
   const colors: Record<string, string> = {
     source: "bg-violet-500/20 text-violet-300",
     test: "bg-cyan-500/20 text-cyan-300",
-    ci: "bg-amber-500/20 text-amber-300",
     cd: "bg-pink-500/20 text-pink-300",
   };
   return (
+<<<<<<< Updated upstream
     <Badge variant="outline" className={cn("text-xs", colors[role] ?? "")}>
       {roleLabel(role)}
+=======
+    <Badge variant="outline" className={cn("capitalize text-xs", colors[display] ?? "")}>
+      {display}
+>>>>>>> Stashed changes
     </Badge>
   );
 }

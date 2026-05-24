@@ -1,4 +1,4 @@
-"""CodeMind Projects — group multiple graphs (source, test, ci, cd) into a
+"""CodeMind Projects — group multiple graphs (source, test, cd) into a
 named project for cross-graph analysis, especially functional coverage.
 
 Workflow
@@ -49,10 +49,12 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _row_to_meta(row) -> GraphMeta:
+    from api.core.project_roles import normalize_graph_meta
+
     data = {k: row[k] for k in row.keys()}
     data.setdefault("graph_role", "source")
     data.setdefault("project_id", None)
-    return GraphMeta(**data)
+    return GraphMeta(**normalize_graph_meta(data))
 
 
 def _require_project(project_id: str):
@@ -126,7 +128,7 @@ def _cross_graph_match_entry_points(
 @router.post("", response_model=ProjectOut, status_code=201, summary="Create a project")
 def create_project(req: ProjectCreate):
     """
-    Create a named project to group graphs by role (source / test / ci / cd).
+    Create a named project to group graphs by role (source / test / cd).
     Then ingest repos with `project_id` set, or use POST /projects/{id}/graphs.
     """
     pid = str(uuid.uuid4())
@@ -249,21 +251,23 @@ def project_coverage(project_id: str, limit: int = 50):
     Requires at least one `role=source` graph.  For accurate results also add a
     `role=test` graph via `POST /projects/{id}/graphs`.
     """
+    from api.core.project_roles import application_graphs, coverage_test_graphs, normalize_role
+
     _require_project(project_id)
     graphs = database.get_project_graphs(project_id)
-    by_role: dict[str, list] = defaultdict(list)
-    for g in graphs:
-        by_role[g["graph_role"] or "source"].append(g)
+    loadable = loadable_graphs(graphs)
+    if not any(normalize_role(g.get("graph_role")) == "source" for g in graphs):
+        raise HTTPException(400, "No 'source' graph in project. Ingest application code first.")
 
-    source_graphs = by_role.get("source", [])
-    test_graphs   = by_role.get("test",   [])
+    loadable_source = application_graphs(loadable)
+    test_graphs = coverage_test_graphs(loadable)
 
-    if not source_graphs:
-        raise HTTPException(400, "No 'source' graph in project. Ingest production code first.")
-
-    loadable_source = loadable_graphs(source_graphs)
     if not loadable_source:
-        summary = ", ".join(f"{g['name']!r} ({g['status']})" for g in source_graphs)
+        summary = ", ".join(
+            f"{g['name']!r} ({g['status']})"
+            for g in graphs
+            if normalize_role(g.get("graph_role")) == "source"
+        )
         raise HTTPException(
             409,
             "No loadable source graph — ingestion may have failed or is still running. "
@@ -323,9 +327,10 @@ def project_coverage(project_id: str, limit: int = 50):
         "source_graphs": [sg["id"] for sg in loadable_source],
         "test_graphs": [tg["id"] for tg in test_graphs],
         "source_graphs_pending": [
-            sg["id"]
-            for sg in source_graphs
-            if sg["id"] not in {g["id"] for g in loadable_source}
+            g["id"]
+            for g in graphs
+            if (g.get("graph_role") or "source") in ("source", "ci")
+            and g["id"] not in {sg["id"] for sg in loadable_source}
         ],
         "test_graph_info": test_info,
 
@@ -367,7 +372,7 @@ def project_search_route(
     top_n: int = 8,
 ):
     """
-    Natural-language search across every ready graph in the project (source, test, CI, CD).
+    Natural-language search across every ready graph in the project (source, test, cd).
     Returns ranked nodes with graph role and name — use /ask for an AI-generated answer.
     """
     _require_project(project_id)
@@ -522,10 +527,12 @@ def project_summary(project_id: str):
     Shows what roles are present, graph statuses, and quick stats.
     """
     _require_project(project_id)
+    from api.core.project_roles import PROJECT_SLOT_ROLES, normalize_role, role_label
+
     graphs = database.get_project_graphs(project_id)
     by_role: dict[str, list] = defaultdict(list)
     for g in graphs:
-        role = g["graph_role"] or "source"
+        role = normalize_role(g["graph_role"])
         by_role[role].append({
             "id": g["id"],
             "name": g["name"],
@@ -534,6 +541,7 @@ def project_summary(project_id: str):
             "edge_count": g["edge_count"],
         })
 
+<<<<<<< Updated upstream
     from api.core.project_roles import PROJECT_SLOT_ROLES, ROLE_LABELS, has_application_graph
 
     has_app = has_application_graph(graphs)
@@ -550,6 +558,11 @@ def project_summary(project_id: str):
             continue
         label = ROLE_LABELS.get(role, role)
         recommendations.append(f"Optional: add a {label} repository.")
+=======
+    missing_roles = [r for r in PROJECT_SLOT_ROLES if r not in by_role]
+    filled = len(PROJECT_SLOT_ROLES) - len(missing_roles)
+    completeness = round(filled / max(len(PROJECT_SLOT_ROLES), 1) * 100)
+>>>>>>> Stashed changes
 
     return {
         "project_id": project_id,
@@ -558,5 +571,12 @@ def project_summary(project_id: str):
         "missing_roles": missing_slots if has_app else ["test", *missing_slots],
         "graphs_by_role": dict(by_role),
         "total_graphs": len(graphs),
+<<<<<<< Updated upstream
         "recommendations": recommendations,
+=======
+        "recommendations": [
+            f"Add a {role_label(role)} repository ({role} slot)."
+            for role in missing_roles
+        ],
+>>>>>>> Stashed changes
     }
