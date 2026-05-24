@@ -331,6 +331,15 @@ export const projectsApi = {
       `/projects/${id}/synthesize?use_llm=${useLlm}`,
       { method: "POST" },
     ),
+  regenerate: (
+    id: string,
+    target: "areas" | "briefs" | "briefing" | "dna" | "all",
+    useLlm = true,
+  ) =>
+    request<Record<string, unknown>>(`/projects/${id}/regenerate`, {
+      method: "POST",
+      body: JSON.stringify({ target, use_llm: useLlm }),
+    }),
   dna: (id: string) => request<import("./types").ProjectDna>(`/projects/${id}/dna`),
   generateDna: (id: string, useLlm = true) =>
     request<import("./types").ProjectDna>(

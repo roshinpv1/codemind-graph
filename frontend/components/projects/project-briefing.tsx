@@ -1,13 +1,13 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { projectsApi } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, AlertTriangle } from "lucide-react";
+import { LlmRegenerateButton } from "@/components/ui/llm-regenerate-button";
+import { AlertTriangle } from "lucide-react";
 import { RichText } from "@/components/ui/rich-text";
 import { useEffect } from "react";
 
@@ -36,12 +36,7 @@ export function ProjectBriefing({ projectId }: ProjectBriefingProps) {
     enabled: !!data?.ready,
   });
 
-  const synthesize = useMutation({
-    mutationFn: () => projectsApi.synthesize(projectId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projects", projectId] });
-    },
-  });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["projects", projectId] });
 
   useEffect(() => {
     if (data?.ready) {
@@ -62,9 +57,16 @@ export function ProjectBriefing({ projectId }: ProjectBriefingProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={() => synthesize.mutate()} disabled={synthesize.isPending}>
-            {synthesize.isPending ? "Refreshing…" : "Refresh understanding"}
-          </Button>
+          <LlmRegenerateButton
+            label="Refresh understanding"
+            pendingLabel="Refreshing…"
+            regenerateLabel="Refresh understanding"
+            variant="default"
+            size="default"
+            visibility="always"
+            onRegenerate={() => projectsApi.regenerate(projectId, "briefing")}
+            onSuccess={invalidate}
+          />
         </CardContent>
       </Card>
     );
@@ -81,15 +83,15 @@ export function ProjectBriefing({ projectId }: ProjectBriefingProps) {
         <div>
           <CardTitle className="text-lg">{headline}</CardTitle>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => synthesize.mutate()}
-          disabled={synthesize.isPending}
-        >
-          <RefreshCw className={`h-4 w-4 mr-1 ${synthesize.isPending ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <LlmRegenerateButton
+          label="Refresh understanding"
+          pendingLabel="Refreshing…"
+          regenerateLabel="Regenerate briefing"
+          visibility="always"
+          hasContent
+          onRegenerate={() => projectsApi.regenerate(projectId, "briefing")}
+          onSuccess={invalidate}
+        />
       </CardHeader>
       <CardContent className="space-y-6">
         {summary && (

@@ -24,11 +24,11 @@ export function ProjectOnboarding({ projectId, repositoryCount }: ProjectOnboard
   });
 
   const synthesize = useMutation({
-    mutationFn: () => projectsApi.synthesize(projectId),
+    mutationFn: () => projectsApi.regenerate(projectId, "briefing"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", projectId] }),
   });
   const generateDna = useMutation({
-    mutationFn: () => projectsApi.generateDna(projectId),
+    mutationFn: () => projectsApi.regenerate(projectId, "dna"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["projects", projectId] }),
   });
 

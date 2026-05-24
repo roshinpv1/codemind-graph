@@ -1,13 +1,13 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { projectsApi } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { RichText } from "@/components/ui/rich-text";
-import { Dna, Sparkles } from "lucide-react";
+import { LlmRegenerateButton } from "@/components/ui/llm-regenerate-button";
+import { Dna } from "lucide-react";
 
 interface ProjectDnaProps {
   projectId: string;
@@ -28,12 +28,7 @@ export function ProjectDna({ projectId, projectName }: ProjectDnaProps) {
     queryFn: () => projectsApi.dna(projectId),
   });
 
-  const generate = useMutation({
-    mutationFn: () => projectsApi.generateDna(projectId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projects", projectId] });
-    },
-  });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["projects", projectId] });
 
   if (isLoading) return <Skeleton className="h-48" />;
 
@@ -53,10 +48,17 @@ export function ProjectDna({ projectId, projectName }: ProjectDnaProps) {
             organized, risks, and where to focus. Generated separately from the structural product map.
           </CardDescription>
         </div>
-        <Button onClick={() => generate.mutate()} disabled={generate.isPending}>
-          <Sparkles className={`h-4 w-4 mr-1 ${generate.isPending ? "animate-pulse" : ""}`} />
-          {generate.isPending ? "Generating…" : hasFull ? "Regenerate DNA" : "Generate DNA"}
-        </Button>
+        <LlmRegenerateButton
+          label="Generate DNA"
+          pendingLabel="Generating…"
+          regenerateLabel="Regenerate DNA"
+          variant="default"
+          size="default"
+          visibility="always"
+          hasContent={hasFull}
+          onRegenerate={() => projectsApi.regenerate(projectId, "dna")}
+          onSuccess={invalidate}
+        />
       </CardHeader>
       <CardContent className="space-y-4">
         {!hasFull ? (
@@ -91,11 +93,6 @@ export function ProjectDna({ projectId, projectName }: ProjectDnaProps) {
               className="max-w-none"
             />
           </>
-        )}
-        {generate.isError && (
-          <p className="text-sm text-destructive">
-            DNA generation failed. Refresh understanding first, then check LLM settings in .env.
-          </p>
         )}
       </CardContent>
     </Card>

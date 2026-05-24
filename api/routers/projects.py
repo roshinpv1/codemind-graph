@@ -26,7 +26,13 @@ from api.core.project_view import build_project_view
 from api.core.project_risk import project_blast_radius
 from api.core.project_decisions import collect_project_decisions
 from api.core.cluster_snapshot import capture_cluster_snapshot, load_snapshot
-from api.core.project_synthesis import synthesize_project, compute_delta, maybe_synthesize_project
+from api.core.project_synthesis import (
+    synthesize_project,
+    compute_delta,
+    maybe_synthesize_project,
+    regenerate_project_content,
+    VALID_REGENERATE_TARGETS,
+)
 from api.core.project_dna import generate_project_dna, get_project_dna
 from api.core import pkb_storage
 from api.core.intent_router import SCENARIO_PACKS
@@ -420,6 +426,41 @@ def project_synthesize_route(
     from api.config import LLM_BACKEND as default_backend
     pkb = synthesize_project(project_id, backend=backend or default_backend, use_llm=use_llm)
     return {"ok": True, "project_id": project_id, "meta": pkb.get("meta"), "metrics": pkb.get("metrics")}
+
+
+class RegenerateRequest(BaseModel):
+    target: str = Field(
+        ...,
+        description="LLM section to regenerate: areas, briefs, briefing, dna, or all",
+    )
+    use_llm: bool = True
+    backend: str | None = None
+
+
+@router.post("/{project_id}/regenerate", response_model=dict, summary="Regenerate LLM project content")
+def project_regenerate_route(
+    project_id: str,
+    body: RegenerateRequest,
+):
+    """Regenerate one LLM-backed slice of project intelligence (areas, briefs, briefing, DNA)."""
+    _require_project(project_id)
+    target = body.target.strip().lower()
+    if target not in VALID_REGENERATE_TARGETS:
+        raise HTTPException(
+            400,
+            f"Invalid target {body.target!r}. Use: {', '.join(sorted(VALID_REGENERATE_TARGETS))}",
+        )
+    from api.config import LLM_BACKEND as default_backend
+
+    try:
+        return regenerate_project_content(
+            project_id,
+            target,
+            backend=body.backend or default_backend,
+            use_llm=body.use_llm,
+        )
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
 
 
 @router.get("/{project_id}/briefing", response_model=dict, summary="Project intelligence briefing")

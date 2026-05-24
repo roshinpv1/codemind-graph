@@ -1,12 +1,14 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { projectsApi } from "@/lib/api";
 import type { ProductArea, ProductCapability, ProductFinding, ProductMapData } from "@/lib/types";
+import { isPlaceholderAreaName, isPlaceholderBrief } from "@/lib/llm-content";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LlmRegenerateButton } from "@/components/ui/llm-regenerate-button";
 import { Map, AlertTriangle, Layers, Route } from "lucide-react";
 import { RichText } from "@/components/ui/rich-text";
 
@@ -21,10 +23,40 @@ const healthStyles: Record<string, string> = {
   unknown: "text-muted-foreground",
 };
 
-function AreaCard({ area }: { area: ProductArea }) {
+function AreaCard({
+  area,
+  onRegenerateArea,
+  onRegenerateBrief,
+  onRegenerateSuccess,
+}: {
+  area: ProductArea;
+  onRegenerateArea?: () => Promise<unknown>;
+  onRegenerateBrief?: () => Promise<unknown>;
+  onRegenerateSuccess?: () => void;
+}) {
+  const namePlaceholder = isPlaceholderAreaName(area.name);
+  const briefPlaceholder = isPlaceholderBrief(area.summary);
+
   return (
-    <div className="rounded-md border p-3 space-y-1">
-      <p className="font-medium text-sm">{area.name}</p>
+    <div className="rounded-md border p-3 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <p className="font-medium text-sm">{area.name}</p>
+        {onRegenerateArea && (
+          <LlmRegenerateButton
+            size="sm"
+            variant="ghost"
+            className="shrink-0"
+            visibility="placeholder"
+            hasContent={!namePlaceholder}
+            isPlaceholder={namePlaceholder}
+            label="Name area"
+            regenerateLabel="Rename"
+            pendingLabel="Naming…"
+            onRegenerate={onRegenerateArea}
+            onSuccess={onRegenerateSuccess}
+          />
+        )}
+      </div>
       {area.centerpiece && (
         <p className="text-xs text-muted-foreground">Center: {area.centerpiece}</p>
       )}
@@ -32,8 +64,22 @@ function AreaCard({ area }: { area: ProductArea }) {
         {area.component_count} components
         {area.repository ? ` · ${area.repository}` : ""}
       </p>
-      {area.summary && (
+      {area.summary ? (
         <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{area.summary}</p>
+      ) : (
+        <p className="text-xs text-muted-foreground italic">No module brief yet.</p>
+      )}
+      {onRegenerateBrief && (
+        <LlmRegenerateButton
+          visibility="placeholder"
+          hasContent={Boolean(area.summary?.trim())}
+          isPlaceholder={briefPlaceholder}
+          label="Generate brief"
+          regenerateLabel="Regenerate brief"
+          pendingLabel="Writing brief…"
+          onRegenerate={onRegenerateBrief}
+          onSuccess={onRegenerateSuccess}
+        />
       )}
     </div>
   );
@@ -76,6 +122,11 @@ function FindingRow({ f }: { f: ProductFinding }) {
 }
 
 export function ProductMap({ projectId }: ProductMapProps) {
+  const qc = useQueryClient();
+  const invalidateMap = () => {
+    qc.invalidateQueries({ queryKey: ["projects", projectId] });
+  };
+
   const { data, isLoading } = useQuery({
     queryKey: ["projects", projectId, "map"],
     queryFn: () => projectsApi.map(projectId),
@@ -98,9 +149,25 @@ export function ProductMap({ projectId }: ProductMapProps) {
               "After repositories finish indexing, refresh understanding to see areas, capabilities, and findings."}
           </CardDescription>
         </CardHeader>
+        <CardContent>
+          <LlmRegenerateButton
+            label="Refresh understanding"
+            pendingLabel="Refreshing…"
+            regenerateLabel="Refresh understanding"
+            variant="default"
+            size="default"
+            visibility="always"
+            onRegenerate={() => projectsApi.regenerate(projectId, "briefing")}
+            onSuccess={invalidateMap}
+          />
+        </CardContent>
       </Card>
     );
   }
+
+  const areas = map.areas ?? [];
+  const anyPlaceholderArea = areas.some((a) => isPlaceholderAreaName(a.name));
+  const anyPlaceholderBrief = areas.some((a) => isPlaceholderBrief(a.summary));
 
   const healthKey = String(map.health?.status_key ?? "unknown");
   const healthLabel = String(map.health?.status_label ?? "Unknown");
@@ -138,16 +205,70 @@ export function ProductMap({ projectId }: ProductMapProps) {
         </CardContent>
       </Card>
 
-      {map.areas && map.areas.length > 0 && (
+      {areas.length > 0 && (
         <section>
-          <h2 className="text-sm font-semibold flex items-center gap-2 mb-3">
-            <Layers className="h-4 w-4" />
-            Product areas
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h2 className="text-sm font-semibold flex items-center gap-2">
+              <Layers className="h-4 w-4" />
+              Product areas
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              <LlmRegenerateButton
+                visibility={anyPlaceholderArea ? "always" : "placeholder"}
+                hasContent={!anyPlaceholderArea}
+                isPlaceholder={anyPlaceholderArea}
+                label="Generate area names"
+                regenerateLabel="Regenerate areas"
+                pendingLabel="Naming areas…"
+                onRegenerate={() => projectsApi.regenerate(projectId, "areas")}
+                onSuccess={invalidateMap}
+              />
+              <LlmRegenerateButton
+                visibility={anyPlaceholderBrief ? "always" : "placeholder"}
+                hasContent={areas.some((a) => Boolean(a.summary?.trim()))}
+                isPlaceholder={anyPlaceholderBrief}
+                label="Generate briefs"
+                regenerateLabel="Regenerate briefs"
+                pendingLabel="Writing briefs…"
+                onRegenerate={() => projectsApi.regenerate(projectId, "briefs")}
+                onSuccess={invalidateMap}
+              />
+            </div>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {map.areas.map((a) => (
-              <AreaCard key={a.id} area={a} />
+            {areas.map((a) => (
+              <AreaCard
+                key={a.id}
+                area={a}
+                onRegenerateArea={() => projectsApi.regenerate(projectId, "areas")}
+                onRegenerateBrief={() => projectsApi.regenerate(projectId, "briefs")}
+                onRegenerateSuccess={invalidateMap}
+              />
             ))}
+          </div>
+        </section>
+      )}
+
+      {areas.length === 0 && (
+        <section className="rounded-md border border-dashed p-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            No product areas yet. Refresh understanding or regenerate area names after repositories are indexed.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <LlmRegenerateButton
+              label="Refresh understanding"
+              pendingLabel="Refreshing…"
+              visibility="always"
+              onRegenerate={() => projectsApi.regenerate(projectId, "briefing")}
+              onSuccess={invalidateMap}
+            />
+            <LlmRegenerateButton
+              label="Generate area names"
+              pendingLabel="Naming areas…"
+              visibility="always"
+              onRegenerate={() => projectsApi.regenerate(projectId, "areas")}
+              onSuccess={invalidateMap}
+            />
           </div>
         </section>
       )}

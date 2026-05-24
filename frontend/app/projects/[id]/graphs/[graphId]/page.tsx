@@ -1,15 +1,17 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { graphsApi } from "@/lib/api";
 import { useGraphStats } from "@/lib/hooks/use-graphs";
 import { useRepositoryParams } from "@/lib/hooks/use-repository-params";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RichText } from "@/components/ui/rich-text";
+import { LlmRegenerateButton } from "@/components/ui/llm-regenerate-button";
 
 export default function GraphOverviewPage() {
   const { graphId } = useRepositoryParams();
+  const qc = useQueryClient();
   const { data: stats, isLoading: statsLoading } = useGraphStats(graphId);
   const { data: communities } = useQuery({
     queryKey: ["graphs", graphId, "communities"],
@@ -74,8 +76,22 @@ export default function GraphOverviewPage() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-start justify-between gap-3">
           <CardTitle className="text-base">Summary</CardTitle>
+          {graphId && (
+            <LlmRegenerateButton
+              label="Generate summary"
+              pendingLabel="Generating…"
+              regenerateLabel="Regenerate summary"
+              visibility="always"
+              hasContent={Boolean(
+                (summary as Record<string, unknown> | undefined)?.summary ??
+                  (summary as Record<string, unknown> | undefined)?.narrative,
+              )}
+              onRegenerate={() => graphsApi.summarize(graphId)}
+              onSuccess={() => qc.invalidateQueries({ queryKey: ["graphs", graphId, "summarize"] })}
+            />
+          )}
         </CardHeader>
         <CardContent>
           {summaryLoading ? (
@@ -90,7 +106,7 @@ export default function GraphOverviewPage() {
               mode="auto"
               variant="panel"
               className="max-w-none"
-              emptyMessage="Run LLM summarize to generate an executive summary."
+              emptyMessage="Generate an executive summary with the button above (requires LLM in .env)."
             />
           )}
         </CardContent>

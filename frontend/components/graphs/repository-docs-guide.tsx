@@ -1,13 +1,12 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Sparkles } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { DocsOverview } from "@/lib/api";
 import { docsApi } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RichText } from "@/components/ui/rich-text";
+import { LlmRegenerateButton } from "@/components/ui/llm-regenerate-button";
 
 interface RepositoryDocsGuideProps {
   graphId: string;
@@ -16,12 +15,7 @@ interface RepositoryDocsGuideProps {
 
 export function RepositoryDocsGuide({ graphId, data }: RepositoryDocsGuideProps) {
   const qc = useQueryClient();
-  const genSummary = useMutation({
-    mutationFn: () => docsApi.generatePlainSummary(graphId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["docs", graphId, "overview"] });
-    },
-  });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["docs", graphId, "overview"] });
 
   const highlights = data.report_highlights;
 
@@ -34,27 +28,28 @@ export function RepositoryDocsGuide({ graphId, data }: RepositoryDocsGuideProps)
       )}
 
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">At a glance</CardTitle>
-          <CardDescription>Plain-language summary of this repository</CardDescription>
+        <CardHeader className="pb-2 flex flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">At a glance</CardTitle>
+            <CardDescription>Plain-language summary of this repository</CardDescription>
+          </div>
+          <LlmRegenerateButton
+            label="Generate summary"
+            pendingLabel="Generating…"
+            regenerateLabel="Regenerate summary"
+            visibility="always"
+            hasContent={Boolean(data.plain_summary?.trim())}
+            onRegenerate={() => docsApi.generatePlainSummary(graphId)}
+            onSuccess={invalidate}
+          />
         </CardHeader>
         <CardContent className="space-y-3">
           {data.plain_summary ? (
             <RichText content={data.plain_summary} mode="auto" variant="panel" className="max-w-none" />
           ) : (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Generate a short executive summary in everyday language (requires LLM in .env).
-              </p>
-              <Button
-                size="sm"
-                onClick={() => genSummary.mutate()}
-                disabled={genSummary.isPending}
-              >
-                <Sparkles className="h-4 w-4 mr-1" />
-                {genSummary.isPending ? "Generating…" : "Generate summary"}
-              </Button>
-            </>
+            <p className="text-sm text-muted-foreground">
+              Generate a short executive summary in everyday language (requires LLM in .env).
+            </p>
           )}
           {highlights?.stats_line && (
             <p className="text-xs text-muted-foreground">{highlights.stats_line}</p>

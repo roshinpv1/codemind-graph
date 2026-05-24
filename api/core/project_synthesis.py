@@ -428,6 +428,213 @@ def _dedupe_risks(risks: list[dict]) -> list[dict]:
     return out
 
 
+VALID_REGENERATE_TARGETS = frozenset({"areas", "briefs", "briefing", "dna", "all"})
+
+
+def _subsystem_row(
+    gmeta: dict,
+    G: nx.Graph,
+    gid: str,
+    role: str,
+    cid: int,
+    members: list[str],
+    name: str,
+) -> dict[str, Any]:
+    hub = max(members, key=lambda n: G.degree(n), default=None)
+    return {
+        "id": f"{gid}:{cid}",
+        "name": name,
+        "graph_id": gid,
+        "graph_role": role,
+        "graph_name": gmeta["name"],
+        "member_count": len(members),
+        "hub_label": G.nodes[hub].get("label", hub) if hub else None,
+        "cohesion": None,
+    }
+
+
+def _brief_for_subsystem(
+    G: nx.Graph,
+    communities: dict[int, list],
+    cid: int,
+    name: str,
+    *,
+    use_llm: bool,
+    backend: str,
+) -> str:
+    members = communities.get(cid, [])
+    hub = max(members, key=lambda n: G.degree(n), default=None) if members else None
+    if use_llm and hub:
+        try:
+            top = sorted(members, key=lambda n: G.degree(n), reverse=True)[:8]
+            member_labels = [G.nodes[n].get("label", n) for n in top]
+            prompt = (
+                f"Write a 2-3 sentence technical brief for software module '{name}'. "
+                f"Members: {', '.join(member_labels)}. Be specific. No markdown headers."
+            )
+            return engine.llm_ask(prompt, backend=backend, max_tokens=120)
+        except Exception:
+            return _template_brief(name, members, G, hub)
+    return _template_brief(name, members, G, hub)
+
+
+def _regenerate_areas_and_briefs(
+    project_id: str,
+    pkb: dict[str, Any],
+    backend: str,
+    *,
+    use_llm: bool,
+    regen_areas: bool,
+    regen_briefs: bool,
+) -> dict[str, Any]:
+    graphs = database.get_project_graphs(project_id)
+    loadable = loadable_graphs(graphs)
+    structural = application_graphs(loadable)
+    if not structural:
+        raise ValueError("No indexed repositories to regenerate.")
+
+    notes: list[str] = list(pkb.get("synthesis_notes") or [])
+    subsystems: list[dict] = []
+    module_briefs: dict[str, str] = dict(pkb.get("module_briefs") or {})
+    existing_by_id = {s["id"]: s for s in pkb.get("subsystems", []) if s.get("id")}
+
+    for gmeta in structural:
+        gid = gmeta["id"]
+        role = gmeta["graph_role"] or "source"
+        G = engine.load_graph(gid)
+        communities = engine.communities_from_graph(G)
+
+        labels: dict[int, str] = {}
+        if regen_areas and use_llm and communities:
+            try:
+                labels = engine.llm_label_communities(G, communities, backend=backend)
+            except Exception as exc:
+                notes.append(f"LLM labels skipped for {gmeta['name']}: {exc}")
+        elif not regen_areas:
+            for sid, row in existing_by_id.items():
+                if not str(sid).startswith(f"{gid}:"):
+                    continue
+                try:
+                    cid = int(str(sid).split(":", 1)[1])
+                    labels[cid] = row.get("name", labels.get(cid, f"Community {cid}"))
+                except (ValueError, IndexError):
+                    continue
+
+        for cid in communities:
+            if cid not in labels:
+                labels[cid] = f"Community {cid}"
+
+        for cid, members in sorted(communities.items(), key=lambda x: -len(x[1]))[:12]:
+            name = labels.get(cid, f"Community {cid}")
+            row = _subsystem_row(gmeta, G, gid, role, cid, members, name)
+            subsystems.append(row)
+            brief_key = row["id"]
+            if regen_briefs:
+                module_briefs[brief_key] = _brief_for_subsystem(
+                    G, communities, cid, name, use_llm=use_llm, backend=backend,
+                )
+            elif brief_key not in module_briefs:
+                module_briefs[brief_key] = _brief_for_subsystem(
+                    G, communities, cid, name, use_llm=use_llm, backend=backend,
+                )
+
+    pkb["subsystems"] = subsystems[:24]
+    pkb["module_briefs"] = module_briefs
+    pkb["synthesis_notes"] = notes[-20:]
+    metrics = dict(pkb.get("metrics") or {})
+    metrics["subsystem_count"] = len(pkb["subsystems"])
+    pkb["metrics"] = metrics
+
+    if regen_areas:
+        top_subs = [s["name"] for s in subsystems[:6]]
+        row = database.get_project(project_id) or {}
+        headline, summary = _template_dna(row.get("name", project_id), metrics, top_subs)
+        dna = dict(pkb.get("dna") or {})
+        dna["headline"] = headline
+        dna["summary"] = summary
+        pkb["dna"] = dna
+
+    repo_meta = [
+        {
+            "id": g["id"],
+            "name": g["name"],
+            "graph_role": g["graph_role"] or "source",
+            "status": g["status"],
+            "node_count": g["node_count"],
+        }
+        for g in loadable
+    ]
+    from api.core.product_ontology import finalize_ontology
+
+    finalize_ontology(pkb, repo_meta)
+    save_pkb(project_id, pkb)
+    return pkb
+
+
+def regenerate_project_content(
+    project_id: str,
+    target: str,
+    backend: str = LLM_BACKEND,
+    *,
+    use_llm: bool = True,
+) -> dict[str, Any]:
+    """Regenerate selected LLM-backed PKB sections without a full graph re-ingest."""
+    if target not in VALID_REGENERATE_TARGETS:
+        raise ValueError(f"Invalid target {target!r}. Use one of: {', '.join(sorted(VALID_REGENERATE_TARGETS))}")
+
+    if target in ("briefing", "all"):
+        pkb = synthesize_project(project_id, backend=backend, use_llm=use_llm)
+        if target == "all" and use_llm:
+            from api.core.project_dna import generate_project_dna
+
+            dna = generate_project_dna(project_id, backend=backend, use_llm=use_llm)
+            return {
+                "ok": True,
+                "project_id": project_id,
+                "target": target,
+                "meta": pkb.get("meta"),
+                "metrics": pkb.get("metrics"),
+                "dna": dna,
+            }
+        return {
+            "ok": True,
+            "project_id": project_id,
+            "target": target,
+            "meta": pkb.get("meta"),
+            "metrics": pkb.get("metrics"),
+        }
+
+    if target == "dna":
+        from api.core.project_dna import generate_project_dna
+
+        dna = generate_project_dna(project_id, backend=backend, use_llm=use_llm)
+        return {"ok": True, "project_id": project_id, "target": target, "dna": dna}
+
+    pkb = load_pkb(project_id)
+    if not pkb:
+        raise ValueError(
+            "Refresh project understanding first (POST /projects/{id}/synthesize or target=briefing)."
+        )
+
+    if target == "areas":
+        pkb = _regenerate_areas_and_briefs(
+            project_id, pkb, backend, use_llm=use_llm, regen_areas=True, regen_briefs=False,
+        )
+    elif target == "briefs":
+        pkb = _regenerate_areas_and_briefs(
+            project_id, pkb, backend, use_llm=use_llm, regen_areas=False, regen_briefs=True,
+        )
+
+    return {
+        "ok": True,
+        "project_id": project_id,
+        "target": target,
+        "meta": pkb.get("meta"),
+        "metrics": pkb.get("metrics"),
+        "subsystem_count": len(pkb.get("subsystems", [])),
+    }
+
+
 def maybe_synthesize_project(project_id: str | None, backend: str = LLM_BACKEND) -> None:
     """Background hook after graph ingest — refresh PKB when project has ready graphs."""
     if not project_id:
